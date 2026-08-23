@@ -40,7 +40,7 @@ function bunch() {
 // can be labeled. Idempotent: only adds missing domain labels per thread.
 function fetchThreads(pageToken) {
   return Gmail.Users.Threads.list('me', {
-    q: 'is:important is:unread -label:low_priority -label:promos -category:updates -in:trash',
+    q: 'is:important is:unread -' + PRETRASH_CATEGORY_QUERY + ' -in:trash',
     maxResults: MAX_THREADS_TAG,
     pageToken: pageToken
   });
@@ -99,10 +99,11 @@ function extractDomain(sender) {
   return match ? match[1] : null;
 }
 
-// Sweeps user labels in pages of 50; resumes via PROPS.OFFSET across runs.
+// Sweeps user labels in pages of REMOVE_EMPTY_LABELS_BATCH; resumes via PROPS.OFFSET across runs.
 function removeEmptyLabels() {
   const labels = GmailApp.getUserLabels();
-  const limit = 50;
+  const limit = REMOVE_EMPTY_LABELS_BATCH;
+  const userProperties = PropertiesService.getUserProperties();
   let offset = parseInt(userProperties.getProperty(PROPS.OFFSET), 10);
   if (isNaN(offset) || offset >= labels.length) offset = 0;
 
@@ -121,7 +122,6 @@ function removeEmptyLabels() {
     if (labels[i].getThreads().length === 0) {
       labels[i].deleteLabel();
       Logger.log('🏷️ Deleted empty label: ' + name);
-      markCleaned_();
     }
   }
   userProperties.setProperty(PROPS.OFFSET, i);

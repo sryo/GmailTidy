@@ -29,24 +29,21 @@ function labelVisibility(name) {
   return LABEL_VISIBILITY_POLICY[name] || LABEL_VISIBILITY_DEFAULT;
 }
 
-const MAX_THREADS_PUBLISH = 100;
 const MAX_THREADS_TAG = 25;
+const REMOVE_EMPTY_LABELS_BATCH = 50;
 
 const EXECUTION_TIME_LIMIT_MS = 5 * 60 * 1000;
-const WEBAPP_CACHE_TTL_SEC = 60;
 
-const CLASSIFIER_SHEET_NAME = 'GmailClassifier';
-const CLASSIFIER_MIN_EXAMPLES_PER_CLASS = 5;
-const CLASSIFIER_FEWSHOT_PER_CLASS = 10;
-const CLASSIFIER_BATCH_SIZE = 20;
-const CLASSIFIER_CONFIDENCE_THRESHOLD = 0.7;
-const CLASSIFIER_SHADOW_MODE = true;
+const TRACKING_SPREADSHEET_NAME = 'GmailTidy';
 const GEMINI_MODEL = 'gemini-3.5-flash';
+const GEMINI_RETRY_MAX_ATTEMPTS = 3;
+const GEMINI_RETRY_BASE_MS = 500;
+const GEMINI_RETRY_RETRYABLE_CODES = [429, 500, 502, 503, 504];
+const PRETRASH_CATEGORY_QUERY = '(label:low_priority OR label:promos OR category:updates)';
 const PRETRASH_AGE_DAYS = 20;
 const ARCHIVE_INBOX_AGE_DAYS = 1;
 const PING_PICKUP_DAYS = 2;
 const PING_EXPIRE_DAYS = 4;
-const BOOTSTRAP_SAMPLE_SIZE = 100;
 const AUTOREPLY_BATCH_LIMIT = 5;
 const AUTOREPLY_DRY_RUN = false;
 const VOICE_EXAMPLES_MAX = 10; // recommended; do not exceed 10 or prompt grows unwieldy
@@ -65,55 +62,16 @@ const BURNDOWN_REPLY_PROMPT = 'Your reply:';
 const BURNDOWN_QUERY = 'is:important is:unread in:inbox -label:sent -label:' + LABEL_PRETRASH + ' -label:"' + LABEL_PUBLIC + '" newer_than:7d';
 const BURNDOWN_PROCESSED_TTL_DAYS = 14;
 
-// Observation engine config.
-const FLIP_WINDOW_HOURS = 72;
-const OBSERVATION_LOOKBACK_DAYS = 14;
-const OBSERVATION_RETENTION_DAYS_CONFIRMED = 180; // corrected/seed rows are never expired
-const PENDING_EXPIRY_DAYS = 14;
-const OBSERVE_BATCH_LIMIT = 200;
-const SETTLE_BATCH_LIMIT = 200;
-
-const VERDICT_KEEP = 'keep';
-const VERDICT_TRASH = 'trash';
-
-const OBS_STATE_PENDING   = 'pending';
-const OBS_STATE_CONFIRMED = 'confirmed';
-const OBS_STATE_CORRECTED = 'corrected';
-const OBS_STATE_EXPIRED   = 'expired';
-
-const TRUTH_SOURCE_USER_FLIP           = 'user_flip';
-const TRUTH_SOURCE_USER_SALVAGE        = 'user_salvage';
-const TRUTH_SOURCE_USER_STAR_PIN       = 'user_star_pin';
-const TRUTH_SOURCE_USER_BURNDOWN_REPLY = 'user_burndown_reply';
-const TRUTH_SOURCE_GMAIL_HELD          = 'gmail_held';
-const TRUTH_SOURCE_SEED                = 'seed';
-
 const TRACKING_TYPE_PINGED = 'pinged';
 const TRACKING_TYPE_DRAFTED = 'drafted';
 const TRACKING_TYPE_BURNDOWN_PROCESSED = 'burndown_processed';
 
-const SHEET_TAB_OBSERVATIONS = 'Observations';
-const SHEET_TAB_SCOREBOARD = 'Scoreboard';
 const SHEET_TAB_TRACKING = 'Tracking';
-
-const OBSERVATIONS_HEADERS = [
-  'threadId', 'observedAt', 'sender', 'subject', 'snippet',
-  'gmailVerdict', 'pretrashed',
-  'llmVerdict', 'llmConfidence', 'llmActed',
-  'settledAt', 'truthVerdict', 'truthSource', 'state'
-];
-const SCOREBOARD_HEADERS = [
-  'computedAt', 'window',
-  'observed', 'settled', 'pending',
-  'gmailAccuracy', 'llmAccuracy', 'llmCoverage',
-  'llmWinsOverGmail', 'llmLossesToGmail', 'bothRight', 'bothWrong'
-];
 const TRACKING_HEADERS = ['threadId', 'type', 'timestamp'];
 
 const PROPS = {
-  LAST_CLEANED_TIME: 'lastCleanedTime',
   OFFSET: 'offset',
-  CLASSIFIER_SHEET_ID: 'CLASSIFIER_SHEET_ID',
+  TRACKING_SHEET_ID: 'CLASSIFIER_SHEET_ID', // key string predates the rename; kept so existing installs keep their sheet
   GEMINI_API_KEY: 'GEMINI_API_KEY'
 };
 
@@ -128,20 +86,20 @@ const TRIGGER_BUNCH_HANDLER = 'bunch';
 const TRIGGER_REMOVE_EMPTY_LABELS_HANDLER = 'removeEmptyLabels';
 const TRIGGER_BURNDOWN_HANDLER = 'sendBurndown';
 const TRIGGER_DAILY_MAINTENANCE_HANDLER = 'dailyMaintenance';
-const MENU_HANDLER = 'addClassifierMenu';
+const MENU_HANDLER = 'addMenu';
 
 const REPLY_PROMPT = (ctx, voiceBlock, messagesBlock) => `You draft a concise email reply on behalf of ${ctx.userEmail}.
 
-User's voice — these threads contain (a) writing samples to mimic for style, (b) any writing principles to follow as rules, and (c) biographical facts (CV, current role, history) you can use as known facts about the user:
+User's voice. These threads contain (a) writing samples to mimic for style, (b) any writing principles to follow as rules, and (c) biographical facts (CV, current role, history) you can use as known facts about the user:
 ---
 ${voiceBlock}
 ---
 
 Rules:
-- Detect the language of the most recent incoming message NOT from ${ctx.userEmail}; reply in THAT language. This OVERRIDES the voice samples, which may be in a different language — translate the voice's style into the reply's language, do not copy the voice samples' language.
+- Detect the language of the most recent incoming message NOT from ${ctx.userEmail}; reply in THAT language. This OVERRIDES the voice samples, which may be in a different language: translate the voice's style into the reply's language, do not copy the voice samples' language.
 - Reply as ${ctx.userEmail} to the most recent message NOT from that address.
 - Match the register of the incoming message (formal vs. casual, terse vs. expansive).
-- For style (word choice, sentence rhythm, openings, sign-offs): mimic the voice samples above when provided; otherwise default to plain, direct, conversational — no filler openings ("Hope you're well"), no corporate stiffness.
+- For style (word choice, sentence rhythm, openings, sign-offs): mimic the voice samples above when provided; otherwise default to plain, direct, conversational, with no filler openings ("Hope you're well") and no corporate stiffness.
 - Under 120 words unless the thread clearly demands more.
 - Do NOT include a subject line, greeting boilerplate, or signature (Gmail adds the signature).
 - Treat biographical facts in the voice samples (CV, current role, skills, history) as true facts about the user that can be referenced in drafts.

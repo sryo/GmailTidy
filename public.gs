@@ -1,10 +1,43 @@
 /*
-Share Gmail threads labeled LABEL_PUBLIC as a web page.
+Share Gmail threads labeled 🌎 Public as a web page.
 Author: Mateo Yadarola (teodalton@gmail.com)
+
+Standalone on purpose: this file is clasp-ignored and deployed as its own Apps Script project
+(the web app needs different access settings than the trigger scripts), so it carries its own
+helpers and constants instead of depending on _config.gs/_util.gs. The main project's install()
+creates the label.
 
 Deployment: must be deployed as "Execute as: me" with access "Anyone with the link" at most.
 NEVER deploy as "Anyone, even anonymous"; that exposes every 🌎-labeled thread to the open internet.
 */
+
+const PUBLIC_LABEL_NAME = '🌎 Public';
+const PUBLIC_MAX_THREADS = 100;
+const PUBLIC_CACHE_TTL_SEC = 60;
+
+function escapeHtml(text) {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Conservative deny-list sanitizer for HTML email bodies before embedding in a web-app page.
+// Personal-use scope: blocks script execution and dangerous URL schemes without preserving rich formatting perfectly.
+function sanitizeEmailHtml(html) {
+  if (!html) return '';
+  var s = html;
+  s = s.replace(/<(script|iframe|object|embed|style|link|meta|base)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+  s = s.replace(/<(script|iframe|object|embed|style|link|meta|base)\b[^>]*\/?>/gi, '');
+  s = s.replace(/\s+on[a-z]+\s*=\s*"[^"]*"/gi, '');
+  s = s.replace(/\s+on[a-z]+\s*=\s*'[^']*'/gi, '');
+  s = s.replace(/\s+on[a-z]+\s*=\s*[^\s>]+/gi, '');
+  s = s.replace(/(href|src|action|formaction)\s*=\s*"\s*(javascript|data:text\/html)[^"]*"/gi, '$1="#"');
+  s = s.replace(/(href|src|action|formaction)\s*=\s*'\s*(javascript|data:text\/html)[^']*'/gi, "$1='#'");
+  return s;
+}
 
 function getThreadsInLabel(labelName) {
   try {
@@ -14,7 +47,7 @@ function getThreadsInLabel(labelName) {
       return [];
     }
 
-    const threads = label.getThreads(0, MAX_THREADS_PUBLISH);
+    const threads = label.getThreads(0, PUBLIC_MAX_THREADS);
     const messagesByThread = GmailApp.getMessagesForThreads(threads);
 
     return threads.map((thread, idx) => {
@@ -146,15 +179,13 @@ function writeThreadsToHtml(threadArray) {
 }
 
 function publishPublicThreads() {
-  getOrCreateUserLabel(LABEL_PUBLIC);
-
   const cache = CacheService.getScriptCache();
   let html = cache.get('public_threads_html');
   if (!html) {
-    const threads = getThreadsInLabel(LABEL_PUBLIC);
+    const threads = getThreadsInLabel(PUBLIC_LABEL_NAME);
     html = writeThreadsToHtml(threads);
     try {
-      cache.put('public_threads_html', html, WEBAPP_CACHE_TTL_SEC);
+      cache.put('public_threads_html', html, PUBLIC_CACHE_TTL_SEC);
     } catch (e) {
       console.log(`Skipped caching (likely >100KB): ${e.toString()}`);
     }

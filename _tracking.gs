@@ -1,6 +1,5 @@
 /*
 Tracking tab: thin store of orthogonal per-thread markers used by ping, riff, and burndown.
-The classifier loop's own bookkeeping lives in Observations.
 Author: Mateo Yadarola (teodalton@gmail.com)
 */
 
@@ -8,7 +7,7 @@ let _trackingValuesCache = null;
 
 function getTrackingValues_() {
   if (_trackingValuesCache === null) {
-    _trackingValuesCache = getClassifierTabs().tracking.getDataRange().getValues();
+    _trackingValuesCache = getTrackingSheet_().getDataRange().getValues();
   }
   return _trackingValuesCache;
 }
@@ -20,12 +19,18 @@ function invalidateTrackingValuesCache_() {
 function recordTrackingRows(threadIds, type) {
   if (!threadIds || threadIds.length === 0) return;
   const now = new Date().toISOString();
-  appendRowsBatch(getClassifierTabs().tracking, threadIds.map(id => [id, type, now]));
+  appendRowsBatch(getTrackingSheet_(), threadIds.map(id => [id, type, now]));
+  invalidateTrackingValuesCache_();
+}
+
+function deleteTrackingRows_(rowNumbers) {
+  if (!rowNumbers || rowNumbers.length === 0) return;
+  deleteRowsReverse(getTrackingSheet_(), rowNumbers);
   invalidateTrackingValuesCache_();
 }
 
 // {threadId: rowNumber} for a single type. Used by ping/riff to dedup + detect dismissal/discard.
-function buildSimpleTrackingIndex_(type) {
+function trackingIndex_(type) {
   const data = getTrackingValues_();
   const idx = {};
   for (let i = 1; i < data.length; i++) {
@@ -56,8 +61,7 @@ function pruneTracking_() {
     if (isNaN(t) || t < now - ttl * 24 * 3600 * 1000) rowsToDelete.push(i + 1);
   }
   if (rowsToDelete.length > 0) {
-    deleteRowsReverse(getClassifierTabs().tracking, rowsToDelete);
-    invalidateTrackingValuesCache_();
+    deleteTrackingRows_(rowsToDelete);
     Logger.log('🧹 Pruned ' + rowsToDelete.length + ' tracking rows.');
   }
 }

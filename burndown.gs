@@ -107,15 +107,14 @@ function processBurndownReplies_() {
   // Tracking row uses message ID as the key (despite the schema's "threadId" column name) because
   // the same digest thread can carry multiple distinct reply messages, each acting on a different
   // set of threads. Renaming the column to be polymorphic would ripple through three other features.
-  const processed = buildSimpleTrackingIndex_(TRACKING_TYPE_BURNDOWN_PROCESSED);
+  const processed = trackingIndex_(TRACKING_TYPE_BURNDOWN_PROCESSED);
   const userEmail = Gmail.Users.getProfile('me').emailAddress;
   const lower = userEmail.toLowerCase();
 
-  const digestThreads = GmailApp.search('subject:"' + BURNDOWN_SUBJECT_PREFIX + '" label:sent -in:trash newer_than:14d');
+  const digestThreads = GmailApp.search('subject:"' + BURNDOWN_SUBJECT_PREFIX + '" label:sent -in:trash newer_than:' + BURNDOWN_PROCESSED_TTL_DAYS + 'd');
   if (digestThreads.length === 0) return;
 
   const actedMsgIds = [];
-  const repliedThreadIds = [];
 
   digestThreads.forEach(thread => {
     const messages = thread.getMessages();
@@ -130,7 +129,6 @@ function processBurndownReplies_() {
         const entries = parseBurndownReply_(msg.getBody(), msg.getPlainBody());
         actOnBurndownEntries_(entries, digestDate, userEmail);
         actedMsgIds.push(msgId);
-        entries.forEach(e => { if (e.threadId && (e.replyText || '').trim()) repliedThreadIds.push(e.threadId); });
       } catch (e) {
         console.log('Burndown parse failed for ' + msgId + ': ' + e.toString());
       }
@@ -140,9 +138,6 @@ function processBurndownReplies_() {
   if (actedMsgIds.length > 0) {
     recordTrackingRows(actedMsgIds, TRACKING_TYPE_BURNDOWN_PROCESSED);
     Logger.log('🔥 Burndown processed ' + actedMsgIds.length + ' reply message(s).');
-  }
-  if (repliedThreadIds.length > 0) {
-    safely_('settleBurndownReplied', () => settleBurndownReplied(repliedThreadIds));
   }
 }
 
@@ -262,13 +257,4 @@ function sendOrDraftBurndownReply_(thread, text, existingDraft, userEmail) {
     thread.createDraftReply(body, { htmlBody });
     Logger.log('🔥 Burndown drafted reply for ' + thread.getId() + '.');
   }
-}
-
-function installBurndownTrigger() {
-  const handler = TRIGGER_BURNDOWN_HANDLER;
-  ScriptApp.getProjectTriggers().forEach(t => {
-    if (t.getHandlerFunction() === handler) ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger(handler).timeBased().atHour(BURNDOWN_HOUR).everyDays(1).create();
-  Logger.log('+ installed daily ' + handler + ' trigger at hour ' + BURNDOWN_HOUR);
 }

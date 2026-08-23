@@ -13,7 +13,7 @@ function generateReplyDraft(thread, voiceExamples, userEmail) {
   if (!ctx) return null;
   const result = callGemini_(buildReplyPrompt_(ctx), apiKey, { temperature: 0.3, logPrefix: 'drafter' });
   if (!result) return null;
-  return { draft: result.draft || '', notes: result.notes || '', confidence: Number(result.confidence) || 0 };
+  return { draft: result.draft || '', notes: result.notes || '' };
 }
 
 function buildReplyContext_(thread, voiceExamples, userEmail) {
