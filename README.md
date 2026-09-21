@@ -1,14 +1,14 @@
 # GmailTidy
 
-Personal Google Apps Script collection for keeping a Gmail inbox tidy.
+Google Apps Script for Gmail inbox zero: auto archive, auto delete old emails, follow-up reminders. Runs on its own inside your Google account.
 
 ## The five
 
-1. **Hot.** Inbox is important mail that's either unread or younger than a day. New senders land in Hot or Meh by your first call: mark important to let them in, unimportant to filter them out.
-2. **Meh.** Pretrash is a browsing space for newsletters and low-priority mail. Salvage means "keep this kind." Auto deletes after 20 days if untouched.
-3. **Ping.** Read mail two to four days old with no reply gets resurfaced to Hot. Remove the marker and it's archived for good. Resurfaced at most once per thread.
-4. **Bunch.** Per domain labels for one click access to all conversations with a sender.
-5. **Stash.** Important threads carrying an attachment get a label for easy retrieval.
+1. **Hot: auto archive.** Inbox is important mail that's either unread or younger than a day. Read mail older than that is archived automatically. New senders land in Hot or Meh by your first call: mark important to let them in, unimportant to filter them out.
+2. **Meh: auto delete old emails.** Pretrash is a browsing space for newsletters and low-priority mail. Salvage means "keep this kind." Auto deletes after 20 days if untouched.
+3. **Ping: follow-up reminder.** Read mail two to four days old with no reply gets resurfaced to Hot. Remove the marker and it's archived for good. Resurfaced at most once per thread.
+4. **Bunch: a label per sender.** Per domain labels for one click access to all conversations with a sender.
+5. **Stash: find attachments.** Important threads carrying an attachment get a label for easy retrieval.
 
 If this approach resonates, check out [Posta](https://sryo.github.io/Posta/), my opinionated take on a mail client.
 
