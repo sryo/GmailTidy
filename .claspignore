@@ -7,4 +7,5 @@ public.gs
 .DS_Store
 LICENSE
 README.md
+assets/**
 oerroc/**

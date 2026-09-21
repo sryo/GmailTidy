@@ -1,0 +1,186 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<style>
+  html, body { width: 800px; height: 500px; }
+  .window { position: absolute; left: 20px; top: 20px; width: 760px; height: 396px; }
+  .captions { top: 426px; }
+  #view-list { opacity: 0; }
+
+  #view-mail .main { position: relative; }
+  .head .meta { font-size: 12px; color: var(--muted); margin-left: 10px; font-weight: 400; }
+  .head .left { display: flex; align-items: baseline; }
+  .intro { padding: 11px 18px 9px; font-size: 12.5px; line-height: 1.45; color: rgba(0,0,0,.62); }
+  table { border-collapse: collapse; width: 724px; margin: 0 18px; table-layout: fixed; }
+  th { text-align: left; font-size: 12.5px; padding: 0 8px 7px; border-bottom: 2px solid #333; height: 26px; }
+  td { vertical-align: top; padding: 9px 8px; border-bottom: 1px solid #eee; height: 84px; width: 50%; }
+  .marker { font-family: 'SF Mono', Menlo, monospace; font-size: 9.5px; color: #aaa; }
+  .sender { font-size: 11.5px; color: #666; margin-top: 3px; }
+  .subject { font-size: 13px; font-weight: 650; margin-top: 1px; }
+  .summary { font-size: 12.5px; color: #333; margin-top: 4px; line-height: 1.35; }
+  .prompt { font-size: 11px; color: #999; display: flex; justify-content: space-between; align-items: center; height: 16px; }
+  .reply { font-size: 13px; line-height: 1.4; margin-top: 5px; min-height: 18px; }
+  .reply .txt { background: rgba(66, 133, 244, calc(var(--sel, 0) * 0.3)); border-radius: 2px; }
+  .caret { display: inline-block; width: 1.5px; height: 15px; background: var(--hot); vertical-align: -2px; margin-left: 1px; opacity: 0; }
+  .tag { font-size: 10.5px; font-weight: 650; padding: 1px 7px; border-radius: 999px; opacity: 0; }
+  .tag.keep { background: rgba(67,160,71,.14); color: #2e7d32; }
+  .tag.edit { background: rgba(66,133,244,.14); color: #1a5fd0; }
+  .tag.skip { background: rgba(0,0,0,.07); color: rgba(0,0,0,.55); }
+  #ring { position: absolute; left: 376px; top: 137px; width: 358px; height: 77px; border: 2px solid var(--hot); border-radius: 8px; opacity: 0; pointer-events: none; }
+  .btn { height: 28px; padding: 0 14px; border-radius: 999px; display: flex; align-items: center; font-size: 12.5px; font-weight: 650; }
+  #btn-reply { background: rgba(0,0,0,.06); color: rgba(0,0,0,.7); }
+  #btn-send { background: var(--hot); color: #fff; position: absolute; right: 18px; top: 12px; opacity: 0; }
+</style>
+</head>
+<body>
+
+<div class="window" id="view-list">
+  <div class="side">
+    <div class="nav active"><span>Inbox</span><span class="count">3</span></div>
+    <div class="nav"><span>Drafts</span><span class="count" id="n-drafts"></span></div>
+    <div class="nav"><span>↩️ Ping</span></div>
+    <hr>
+    <div class="nav"><span>All Mail</span></div>
+    <div class="nav"><span>Sent</span></div>
+  </div>
+  <div class="main">
+    <div class="head"><h1>Inbox</h1></div>
+    <div class="row unread" id="l-ana">
+      <span class="dot"></span><span class="imp on"></span>
+      <span class="from">Ana Ruiz</span>
+      <span class="subj"><b>Contract draft v3</b><i> · Two open redlines, can you sign off by Friday?</i></span>
+      <span class="chip draft">Draft</span>
+      <span class="time">Mon</span>
+    </div>
+    <div class="row unread" id="l-dana">
+      <span class="dot"></span><span class="imp on"></span>
+      <span class="from">Dana Cho</span>
+      <span class="subj"><b>Q3 budget, need your numbers</b><i> · Before Thursday's review if you can</i></span>
+      <span class="chip draft">Draft</span>
+      <span class="time">Mon</span>
+    </div>
+    <div class="row unread" id="l-leo">
+      <span class="dot"></span><span class="imp on"></span>
+      <span class="from">Leo Park</span>
+      <span class="subj"><b>Offsite venue options</b><i> · A or B? Need to book one this week</i></span>
+      <span class="time">Mon</span>
+    </div>
+  </div>
+</div>
+
+<div class="window" id="view-mail">
+  <div class="main">
+    <div class="head">
+      <div class="left"><h1>Burndown 2026-09-22</h1><span class="meta">Burndown to me · 8:00 AM</span></div>
+      <div class="btn" id="btn-reply">Reply</div>
+      <div class="btn" id="btn-send">Send</div>
+    </div>
+    <div class="intro">3 threads waiting. Reply to this email and edit the right-column cells. Leave a Riff suggestion alone to accept it; clear a cell to skip.</div>
+    <table>
+      <thead><tr><th>Mail</th><th>Your reply</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><div class="marker">━ thread 18f3a9c2d1e04b7a</div><div class="sender">Ana Ruiz</div><div class="subject">Contract draft v3</div><div class="summary">Wants sign-off on two open redlines by Friday.</div></td>
+          <td><div class="prompt"><span>Your reply:</span><span class="tag keep" id="tag1">kept</span></div><div class="reply"><span class="txt">Both redlines look fine to me. Go ahead and send the final for signature.</span></div></td>
+        </tr>
+        <tr>
+          <td><div class="marker">━ thread 18f39f7b02c6a5d3</div><div class="sender">Dana Cho</div><div class="subject">Q3 budget, need your numbers</div><div class="summary">Needs your team's Q3 numbers before Thursday's review.</div></td>
+          <td><div class="prompt"><span>Your reply:</span><span class="tag edit" id="tag2">edited</span></div><div class="reply"><span class="txt" id="txt2">I'll get you the numbers by Wednesday.</span><span class="caret" id="caret2"></span></div></td>
+        </tr>
+        <tr>
+          <td><div class="marker">━ thread 18f39d44e1a8c0f9</div><div class="sender">Leo Park</div><div class="subject">Offsite venue options</div><div class="summary">Asks you to pick between venue A and venue B.</div></td>
+          <td><div class="prompt"><span>Your reply:</span><span class="tag skip" id="tag3">skipped</span></div><div class="reply"><span class="txt" id="txt3">Option B works for me.</span><span class="caret" id="caret3"></span></div></td>
+        </tr>
+      </tbody>
+    </table>
+    <div id="ring"></div>
+  </div>
+</div>
+
+<div class="captions">
+  <div class="cap" id="c0"><b class="burn">Burndown.</b> One mail each morning: the threads you didn't get to.</div>
+  <div class="cap" id="c1">Reply once. Leave a suggestion alone to accept it.</div>
+  <div class="cap" id="c2">Edit a cell to say it your way.</div>
+  <div class="cap" id="c3">Clear a cell to skip.</div>
+  <div class="cap" id="c4">Drafts land on each thread. Nothing goes out until you send it.</div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+  const DURATION = 15;
+  const ROW = 84;
+  const TYPED = 'Sending them tonight. Can we move the review to Friday?';
+  const ORIGINAL2 = document.getElementById('txt2').textContent;
+  const ORIGINAL3 = document.getElementById('txt3').textContent;
+  const CPS = 24;
+  const T_CLEAR2 = 5.0, T_TYPE2 = 5.25, T_CLEAR3 = 8.75;
+  const T_TYPE2_END = T_TYPE2 + TYPED.length / CPS;
+
+  function pop(sel, at) {
+    tw(sel, 'opacity', 0, 1, at, 0.2);
+    tw(sel, 'scale', 0.5, 1, at, 0.25);
+  }
+  function press(sel, at) {
+    tw(sel, 'scale', 1, 0.9, at, 0.12);
+    tw(sel, 'scale', 0.9, 1, at + 0.12, 0.18);
+  }
+
+  caption('#c0', -1, 2.4);
+
+  // Reply: the right column becomes editable.
+  press('#btn-reply', 2.3);
+  tw('#btn-reply', 'opacity', 1, 0, 2.5, 0.2);
+  tw('#btn-send', 'opacity', 0, 1, 2.6, 0.25);
+  caption('#c1', 2.5, 4.4);
+  tw('#ring', 'opacity', 0, 1, 2.7, 0.25);
+  pop('#tag1', 3.3);
+
+  // Cell 2: replace the suggestion.
+  caption('#c2', 4.4, 8.0);
+  tw('#ring', 'y', 0, ROW, 4.2, 0.4);
+  tw('#txt2', '--sel', 0, 1, 4.65, 0.2);
+  pop('#tag2', T_TYPE2_END + 0.15);
+
+  // Cell 3: clear to skip.
+  caption('#c3', 8.0, 10.0);
+  tw('#ring', 'y', ROW, ROW * 2, 7.9, 0.4);
+  tw('#txt3', '--sel', 0, 1, 8.35, 0.2);
+  pop('#tag3', T_CLEAR3 + 0.2);
+
+  custom(t => {
+    const txt2 = document.getElementById('txt2'), txt3 = document.getElementById('txt3');
+    const caret2 = document.getElementById('caret2'), caret3 = document.getElementById('caret3');
+    const blink = Math.floor(t * 2.5) % 2 === 0 ? 1 : 0;
+    if (t < T_CLEAR2) txt2.textContent = ORIGINAL2;
+    else if (t < T_TYPE2) txt2.textContent = '';
+    else txt2.textContent = TYPED.slice(0, Math.floor((t - T_TYPE2) * CPS));
+    if (t >= T_CLEAR2) txt2.style.setProperty('--sel', 0);
+    const typing = t >= T_TYPE2 && t < T_TYPE2_END;
+    caret2.style.opacity = t >= T_CLEAR2 && t < 7.9 ? (typing ? 1 : blink) : 0;
+    txt3.textContent = t < T_CLEAR3 ? ORIGINAL3 : '';
+    if (t >= T_CLEAR3) txt3.style.setProperty('--sel', 0);
+    caret3.style.opacity = t >= T_CLEAR3 && t < 9.9 ? blink : 0;
+  });
+
+  // Send, then the drafts appear on the real threads.
+  press('#btn-send', 9.7);
+  tw('#ring', 'opacity', 1, 0, 9.7, 0.2);
+  tw('#view-mail', 'opacity', 1, 0, 10.0, 0.4);
+  tw('#view-mail', 'y', 0, -24, 10.0, 0.4);
+  tw('#view-list', 'opacity', 0, 1, 10.25, 0.4);
+  caption('#c4', 10.3, null);
+  tw('#l-ana .chip', 'opacity', 0, 1, 11.2, 0.2);
+  tw('#l-ana .chip', 'scale', 0.4, 1, 11.2, 0.25);
+  tw('#l-dana .chip', 'opacity', 0, 1, 11.5, 0.2);
+  tw('#l-dana .chip', 'scale', 0.4, 1, 11.5, 0.25);
+  step('#n-drafts', 11.2, '1');
+  step('#n-drafts', 11.5, '2');
+  bump('#n-drafts', 11.2);
+  bump('#n-drafts', 11.5 + 0.41);
+
+  document.fonts.ready.then(() => { seek(0); window.READY = true; });
+</script>
+</body>
+</html>

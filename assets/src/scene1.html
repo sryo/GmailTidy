@@ -1,0 +1,162 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<style>
+  html, body { width: 800px; height: 500px; }
+  .window { position: absolute; left: 20px; top: 20px; width: 760px; height: 396px; }
+  .captions { top: 426px; }
+  .clock { width: 96px; justify-content: center; font-weight: 650; color: rgba(0,0,0,.75); }
+  .clock span { position: absolute; opacity: 0; }
+  .run .flash { position: absolute; inset: 0; background: rgba(67, 160, 71, 0.22); opacity: 0; }
+  .run .led { width: 7px; height: 7px; border-radius: 50%; background: #43a047; }
+  .run > * { position: relative; }
+  .row .hl { position: absolute; inset: 0; background: rgba(245, 124, 0, 0.13); opacity: 0; }
+  .row > *:not(.hl) { position: relative; }
+  #r-dana2 { height: 0; opacity: 0; }
+  .chip.anim { opacity: 0; }
+</style>
+</head>
+<body>
+<div class="window">
+  <div class="side">
+    <div class="nav active"><span>Inbox</span><span class="count" id="n-inbox">6</span></div>
+    <div class="nav"><span>↩️ Ping</span><span class="count" id="n-ping"></span></div>
+    <div class="nav"><span>🗑️<small>pretrash</small></span><span class="count" id="n-meh"></span></div>
+    <hr>
+    <div class="nav"><span>All Mail</span></div>
+    <div class="nav"><span>Sent</span></div>
+  </div>
+  <div class="main">
+    <div class="head">
+      <h1>Inbox</h1>
+      <div class="tools">
+        <div class="pill run"><div class="flash" id="flash"></div><span class="led" id="led"></span><span class="mono">cleanUp · every 5 min</span></div>
+        <div class="pill clock"><span id="d-mon">Mon 9:00</span><span id="d-tue">Tue 9:00</span><span id="d-wed">Wed 9:00</span></div>
+      </div>
+    </div>
+
+    <div class="row unread" id="r-ana">
+      <span class="dot"></span><span class="imp on"></span>
+      <span class="from">Ana Ruiz</span>
+      <span class="subj"><b>Contract draft v3</b><i> · Two open redlines, can you sign off by Friday?</i></span>
+      <span class="time t-day">8:41 AM</span>
+    </div>
+    <div class="row unread low" id="r-shop">
+      <span class="dot"></span><span class="imp"></span>
+      <span class="from">Shoply</span>
+      <span class="subj"><b>48 hours only: 30% off everything</b><i> · Your cart misses you</i></span>
+      <span class="chip trash anim">🗑️</span>
+      <span class="time t-day">8:30 AM</span>
+    </div>
+    <div class="row" id="r-leo">
+      <span class="dot"></span><span class="imp on"></span>
+      <span class="from">Leo Park, me<em>2</em></span>
+      <span class="subj"><b>Lunch Thursday?</b><i> · Works for me, see you at 1</i></span>
+      <span class="time t-day">8:22 AM</span>
+    </div>
+    <div class="row unread low" id="r-byte">
+      <span class="dot"></span><span class="imp"></span>
+      <span class="from">The Weekly Byte</span>
+      <span class="subj"><b>Issue #212</b><i> · Everything new in JavaScript this week</i></span>
+      <span class="chip trash anim">🗑️</span>
+      <span class="time t-day">8:15 AM</span>
+    </div>
+    <div class="row" id="r-dana">
+      <span class="dot"></span><span class="imp on"></span>
+      <span class="from">Dana Cho</span>
+      <span class="subj"><b>Q3 budget, need your numbers</b><i> · Before Thursday's review if you can</i></span>
+      <span class="time t-day">8:12 AM</span>
+    </div>
+    <div class="row unread low" id="r-fly">
+      <span class="dot"></span><span class="imp"></span>
+      <span class="from">Flightly</span>
+      <span class="subj"><b>Deals from your city</b><i> · Weekend fares from $49</i></span>
+      <span class="chip trash anim">🗑️</span>
+      <span class="time t-day">7:58 AM</span>
+    </div>
+    <div class="row" id="r-dana2">
+      <div class="hl" id="hl"></div>
+      <span class="dot"></span><span class="imp on"></span>
+      <span class="from">Dana Cho</span>
+      <span class="subj"><b>Q3 budget, need your numbers</b><i> · Before Thursday's review if you can</i></span>
+      <span class="chip ping">↩️ Ping</span>
+      <span class="time">Mon</span>
+    </div>
+  </div>
+</div>
+
+<div class="captions">
+  <div class="cap" id="c0">Monday, 9:00. Six threads in the inbox.</div>
+  <div class="cap" id="c1"><b class="meh">Meh.</b> Newsletters and promos move to pretrash. Auto deleted after 20 days.</div>
+  <div class="cap" id="c2"><b class="hot">Hot.</b> A day later, read mail is archived. Unread stays.</div>
+  <div class="cap" id="c3"><b class="ping">Ping.</b> Read but never answered? It comes back, once.</div>
+  <div class="cap" id="c4">The inbox only holds what still needs you.</div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+  const DURATION = 14.5;
+
+  function runFlash(at) {
+    tw('#flash', 'opacity', 0, 1, at, 0.18);
+    tw('#flash', 'opacity', 1, 0, at + 0.18, 0.7);
+    tw('#led', 'scale', 1, 1.7, at, 0.18);
+    tw('#led', 'scale', 1.7, 1, at + 0.18, 0.4);
+  }
+  function leave(sel, at) {
+    tw(sel, 'opacity', 1, 0, at, 0.45);
+    tw(sel, 'x', 0, -36, at, 0.45);
+    tw(sel, 'height', 54, 0, at + 0.3, 0.5);
+  }
+  function swapClock(from, to, at) {
+    tw(from, 'opacity', 1, 0, at, 0.3);
+    tw(from, 'y', 0, -10, at, 0.3);
+    tw(to, 'opacity', 0, 1, at + 0.1, 0.3);
+    tw(to, 'y', 10, 0, at + 0.1, 0.3);
+  }
+
+  tw('#d-mon', 'opacity', 1, 1, 0, 0.01);
+
+  // Monday: pretrash the low-priority mail.
+  caption('#c0', -1, 1.9);
+  caption('#c1', 1.9, 5.3);
+  runFlash(2.0);
+  ['#r-shop', '#r-byte', '#r-fly'].forEach((r, i) => {
+    tw(r + ' .chip', 'opacity', 0, 1, 2.3 + i * 0.14, 0.2);
+    tw(r + ' .chip', 'scale', 0.4, 1, 2.3 + i * 0.14, 0.25);
+    leave(r, 3.3 + i * 0.12);
+  });
+  step('#n-meh', 3.6, '3');
+  step('#n-inbox', 3.6, '3');
+  bump('#n-meh', 3.6);
+
+  // Tuesday: archive read mail older than a day.
+  swapClock('#d-mon', '#d-tue', 5.3);
+  caption('#c2', 5.4, 8.6);
+  step('.t-day', 5.5, 'Mon');
+  runFlash(6.0);
+  leave('#r-leo', 6.4);
+  leave('#r-dana', 6.52);
+  step('#n-inbox', 6.8, '1');
+
+  // Wednesday: resurface the read thread that never got a reply.
+  swapClock('#d-tue', '#d-wed', 8.6);
+  caption('#c3', 8.7, 12.0);
+  runFlash(9.2);
+  tw('#r-dana2', 'height', 0, 54, 9.5, 0.5);
+  tw('#r-dana2', 'opacity', 0, 1, 9.7, 0.4);
+  tw('#hl', 'opacity', 0, 1, 9.7, 0.3);
+  tw('#hl', 'opacity', 1, 0, 10.6, 1.0);
+  tw('#r-dana2 .chip', 'scale', 0.4, 1, 9.9, 0.25);
+  step('#n-inbox', 9.8, '2');
+  step('#n-ping', 9.8, '1');
+  bump('#n-ping', 9.8);
+
+  caption('#c4', 12.0, null);
+
+  document.fonts.ready.then(() => { seek(0); window.READY = true; });
+</script>
+</body>
+</html>

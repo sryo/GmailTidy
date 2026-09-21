@@ -1,0 +1,89 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<style>
+  html, body { width: 1280px; height: 640px; }
+  body { background: linear-gradient(135deg, #f4f6fa 0%, #e6eaf1 100%); }
+  .copy { position: absolute; left: 72px; top: 0; bottom: 0; width: 580px; display: flex; flex-direction: column; justify-content: center; }
+  .repo { font-family: 'SF Mono', Menlo, monospace; font-size: 22px; color: rgba(0,0,0,.45); margin-bottom: 18px; }
+  h1.title { font-size: 104px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; }
+  .tagline { font-size: 39px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.18; margin-top: 22px; color: rgba(0,0,0,.82); }
+  .sub { font-size: 23px; color: rgba(0,0,0,.52); margin-top: 20px; line-height: 1.4; }
+  .five { display: flex; gap: 10px; margin-top: 34px; }
+  .five span { font-size: 22px; font-weight: 700; height: 42px; padding: 0 18px; border-radius: 999px; display: flex; align-items: center; color: #fff; }
+
+  .stage { position: absolute; left: 676px; top: 104px; transform: rotate(-3deg); transform-origin: top left; }
+  .window { width: 552px; height: 466px; flex-direction: column; border-radius: 20px; box-shadow: 0 2px 4px rgba(0,0,0,.06), 0 30px 70px rgba(30,50,90,.22); }
+  .head { height: 74px; padding: 0 28px; }
+  .head h1 { font-size: 26px; }
+  .pill { height: 36px; font-size: 16px; padding: 0 16px; gap: 8px; }
+  .pill .led { width: 10px; height: 10px; border-radius: 50%; background: #43a047; }
+  .mono { font-size: 15px; }
+  .row { height: 78px; font-size: 20px; gap: 14px; padding: 0 28px 0 18px; }
+  .row .dot { width: 10px; height: 10px; }
+  .row .imp { width: 21px; height: 15px; }
+  .row .from { width: 132px; }
+  .chip { font-size: 16px; height: 30px; padding: 0 12px; }
+  .row.gone > *:not(.chip) { opacity: .38; }
+  .row.gone .subj b, .row.gone .from { text-decoration: line-through; text-decoration-color: rgba(0,0,0,.35); }
+  .row .hl { position: absolute; inset: 0; background: rgba(245, 124, 0, 0.1); }
+  .row > *:not(.hl) { position: relative; }
+</style>
+</head>
+<body>
+  <div class="copy">
+    <div class="repo">sryo/GmailTidy</div>
+    <h1 class="title">GmailTidy</h1>
+    <div class="tagline">Gmail inbox zero<br>that runs itself.</div>
+    <div class="sub">Google Apps Script. Auto archive, auto delete old emails, follow-up reminders.</div>
+    <div class="five">
+      <span style="background:var(--hot)">Hot</span>
+      <span style="background:var(--meh)">Meh</span>
+      <span style="background:var(--ping)">Ping</span>
+      <span style="background:var(--bunch)">Bunch</span>
+      <span style="background:var(--stash)">Stash</span>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="window">
+      <div class="head">
+        <h1>Inbox</h1>
+        <div class="pill"><span class="led"></span><span class="mono">cleanUp</span></div>
+      </div>
+      <div class="row unread">
+        <span class="dot"></span><span class="imp on"></span>
+        <span class="from">Ana Ruiz</span>
+        <span class="subj"><b>Contract draft v3</b></span>
+      </div>
+      <div class="row">
+        <div class="hl"></div>
+        <span class="dot"></span><span class="imp on"></span>
+        <span class="from">Dana Cho</span>
+        <span class="subj"><b>Q3 budget numbers</b></span>
+        <span class="chip ping">↩️ Ping</span>
+      </div>
+      <div class="row unread gone">
+        <span class="dot"></span><span class="imp"></span>
+        <span class="from">Shoply</span>
+        <span class="subj"><b>48 hours only: 30% off</b></span>
+        <span class="chip trash">🗑️</span>
+      </div>
+      <div class="row unread gone">
+        <span class="dot"></span><span class="imp"></span>
+        <span class="from">Weekly Byte</span>
+        <span class="subj"><b>Issue #212</b></span>
+        <span class="chip trash">🗑️</span>
+      </div>
+      <div class="row unread gone">
+        <span class="dot"></span><span class="imp"></span>
+        <span class="from">Flightly</span>
+        <span class="subj"><b>Deals from your city</b></span>
+        <span class="chip trash">🗑️</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

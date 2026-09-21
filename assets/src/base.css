@@ -1,0 +1,66 @@
+:root {
+  --bg: #eceef2;
+  --win: #fff;
+  --side: #f6f7f9;
+  --line: rgba(0, 0, 0, 0.08);
+  --text: #1f2328;
+  --muted: rgba(0, 0, 0, 0.5);
+  --hot: #4285f4;
+  --meh: #e53935;
+  --ping: #f57c00;
+  --bunch: #43a047;
+  --stash: #8e44ad;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+.window {
+  background: var(--win);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 10px 30px rgba(0, 0, 0, 0.09);
+  display: flex;
+  overflow: hidden;
+}
+.side { width: 168px; background: var(--side); border-right: 1px solid var(--line); padding: 14px 10px; flex: none; }
+.nav { height: 34px; border-radius: 8px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; font-size: 13.5px; color: rgba(0, 0, 0, 0.72); margin-bottom: 2px; }
+.nav.active { background: rgba(66, 133, 244, 0.12); color: var(--hot); font-weight: 650; }
+.nav small { font-size: 12px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.nav .count { font-size: 12.5px; font-weight: 650; display: inline-block; min-width: 10px; text-align: right; }
+.side hr { border: 0; border-top: 1px solid var(--line); margin: 10px 4px; }
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.head { height: 52px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; box-shadow: inset 0 -1px 0 var(--line); }
+.head h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.tools { display: flex; align-items: center; gap: 8px; }
+.pill { position: relative; height: 26px; border-radius: 999px; padding: 0 11px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(0, 0, 0, 0.62); background: rgba(0, 0, 0, 0.05); overflow: hidden; }
+.mono { font-family: 'SF Mono', Menlo, Monaco, monospace; font-size: 11.5px; }
+
+.row { height: 54px; display: flex; align-items: center; gap: 10px; padding: 0 18px 0 12px; overflow: hidden; box-shadow: inset 0 -1px 0 var(--line); font-size: 13.5px; white-space: nowrap; position: relative; }
+.row .dot { width: 7px; height: 7px; border-radius: 50%; background: transparent; flex: none; }
+.row.unread .dot { background: var(--hot); }
+.row .imp { width: 15px; height: 11px; flex: none; background: #d5d9df; clip-path: polygon(0 0, 62% 0, 100% 50%, 62% 100%, 0 100%); }
+.row .imp.on { background: #f4b400; }
+.row .from { width: 128px; flex: none; overflow: hidden; text-overflow: ellipsis; color: rgba(0, 0, 0, 0.78); }
+.row .from em { font-style: normal; color: var(--muted); font-size: 12px; margin-left: 4px; }
+.row .subj { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: rgba(0, 0, 0, 0.78); }
+.row .subj i { font-style: normal; color: var(--muted); }
+.row.unread .from, .row.unread .subj b { font-weight: 700; color: var(--text); }
+.row .subj b { font-weight: 400; }
+.row .time { width: 56px; flex: none; text-align: right; font-size: 12px; color: var(--muted); }
+.row.unread .time { color: var(--text); font-weight: 650; }
+.chip { flex: none; font-size: 11.5px; font-weight: 600; height: 21px; padding: 0 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 3px; }
+.chip.trash { background: rgba(229, 57, 53, 0.1); color: var(--meh); }
+.chip.ping { background: rgba(245, 124, 0, 0.14); color: #c25e00; }
+.chip.draft { background: rgba(229, 57, 53, 0.1); color: #c5221f; }
+
+.captions { position: absolute; left: 20px; right: 20px; height: 56px; }
+.cap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 17px; color: rgba(0, 0, 0, 0.72); letter-spacing: -0.005em; opacity: 0; }
+.cap b { font-weight: 750; margin-right: 6px; }
+.cap b.hot { color: var(--hot); }
+.cap b.meh { color: var(--meh); }
+.cap b.ping { color: var(--ping); }
+.cap b.burn { color: var(--text); }

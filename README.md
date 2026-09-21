@@ -2,6 +2,8 @@
 
 Google Apps Script for Gmail inbox zero: auto archive, auto delete old emails, follow-up reminders. Runs on its own inside your Google account.
 
+![Three days of an inbox: promos move to pretrash, read mail is archived after a day, an unanswered thread comes back with a Ping label](assets/hot-meh-ping.gif)
+
 ## The five
 
 1. **Hot: auto archive.** Inbox is important mail that's either unread or younger than a day. Read mail older than that is archived automatically. New senders land in Hot or Meh by your first call: mark important to let them in, unimportant to filter them out.
@@ -22,15 +24,17 @@ If this approach resonates, check out [Posta](https://sryo.github.io/Posta/), my
 
 **`cleanUp.gs`**. Schedules low-priority mail for deletion and keeps pinned/important state consistent.
 
-![mail2web](https://github.com/user-attachments/assets/b83c71bb-186f-4964-8fb7-c84c5c66315b)
-
 **`public.gs`**. Publishes Gmail threads labeled `🌎 Public` as a web page. Deploy as "Execute as: me" with access "Anyone with the link" at most; never "Anyone, even anonymous."
+
+![mail2web](https://github.com/user-attachments/assets/b83c71bb-186f-4964-8fb7-c84c5c66315b)
 
 **`riff.gs`**. Apply `🦾` to any thread to add some AI muscle. Riff uses recent sent emails labeled `🫵` to match your voice.
 
 **`bunch.gs`**. Groups important untagged threads under per-domain labels.
 
 **`burndown.gs`**. The threads you didn't get to yesterday, all in one mail. Reply once. Drafts land on each thread.
+
+![Replying once to the Burndown digest: keep one suggestion, rewrite another, clear a third, and drafts appear on the two threads](assets/burndown.gif)
 
 ## Setup (one-time)
 
