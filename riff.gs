@@ -6,17 +6,15 @@ Author: Mateo Yadarola (teodalton@gmail.com)
 function riff() {
   const trackingValues = getTrackingValues_();
   const drafted = trackingIndex_(TRACKING_TYPE_DRAFTED);
-  const threads = GmailApp.search('label:"' + LABEL_AUTOREPLY + '" -in:trash', 0, AUTOREPLY_BATCH_LIMIT);
+  // Scan wider than the LLM budget: threads parked on a pending draft must not starve the rest.
+  const threads = GmailApp.search('label:"' + LABEL_AUTOREPLY + '" -in:trash', 0, RIFF_SCAN_LIMIT);
   if (threads.length === 0) return;
 
   const autoreply = GmailApp.getUserLabelByName(LABEL_AUTOREPLY);
   const draftedThreadIds = buildDraftThreadIdSet_();
   const rowsToDelete = {};
-
-  // Computed once per batch; reused across all drafted threads.
-  const userEmail = Gmail.Users.getProfile('me').emailAddress;
-  const voiceExamples = loadVoiceExamples_(userEmail);
-  if (voiceExamples.length > 0) Logger.log('🫵 Voicing with ' + voiceExamples.length + ' samples.');
+  let voiceExamples = null;
+  let generated = 0;
 
   threads.forEach(t => {
     try {
@@ -28,7 +26,7 @@ function riff() {
       if (wasDrafted && !hasDraft) {
         const draftedAt = trackingValues[drafted[threadId] - 1][2];
         rowsToDelete[drafted[threadId]] = true;
-        if (wasReplySentAfter_(t, userEmail, draftedAt)) {
+        if (wasReplySentAfter_(t, draftedAt)) {
           autoreply.removeFromThreads([t]);
           Logger.log('🦾 Riff sent for ' + threadId + '.');
         } else {
@@ -43,8 +41,11 @@ function riff() {
         return;
       }
 
-      // No draft yet: generate one.
-      const result = generateReplyDraft(t, voiceExamples, userEmail);
+      // No draft yet: generate one, within the per-run LLM budget.
+      if (generated >= AUTOREPLY_BATCH_LIMIT) return;
+      generated++;
+      if (!voiceExamples) voiceExamples = loadVoiceExamples_();
+      const result = generateReplyDraft(t, voiceExamples);
       if (!result) return; // abstain on API failure, retry next tick
       if (!result.draft) {
         Logger.log('🦾 Riff skipped ' + threadId + ' (' + (result.notes || 'no draft returned') + ').');
@@ -55,7 +56,7 @@ function riff() {
       if (AUTOREPLY_DRY_RUN) {
         Logger.log('🦾 [DRY RUN] would draft for ' + threadId + ':\n' + result.draft);
       } else {
-        const { body, htmlBody } = buildReplyBody_(t, result.draft, userEmail);
+        const { body, htmlBody } = buildReplyBody_(t, result.draft);
         t.createDraftReply(body, { htmlBody });
         t.moveToInbox();
         t.markUnread();

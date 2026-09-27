@@ -3,6 +3,14 @@
 Implementation contracts for anyone (human or AI) working in this repo.
 Read README.md first for product goals.
 
+## Goals
+- Self-running: zero upkeep. One failing routine never stops the rest.
+- Gmail is the UI: intent comes from Gmail gestures, no settings.
+- Reversible: pretrash before trash; every action can be undone by a gesture.
+- Inspectable: every action traces to a signal visible in Gmail.
+- Assist, don't act: LLM output is drafts; autosend is opt-in.
+- Maintainable: small, readable code. Prefer deleting code to adding it.
+
 ## Communication
 - No em-dashes anywhere.
 - Terse. WHAT + WHY, never HOW.
@@ -13,7 +21,8 @@ Read README.md first for product goals.
 Every numeric constant or stringly-typed value (intervals, TTLs, thresholds,
 limits, tracking types, source labels) lives in `_config.gs`. Use the named
 constant in code, never the literal. Exception: Gmail system-label names
-(`pinned`, `snoozed`, `done`, `low_priority`, `promos`) stay as literals in
+(`pinned`, `snoozed`, `done`, `low_priority`, `promos`, `inbox`, `sent`, `trash`,
+`starred`, `category:updates`) stay as literals in
 queries since they're external to our schema.
 
 ## Minimum effort
@@ -53,22 +62,24 @@ labels. Manual gestures the system reads as signal:
 One-time setup: label a handful of your sent emails with **🫵** so the drafter has voice examples to mimic.
 
 ## Tracking sheet
-A spreadsheet named `GmailTidy (<email>)` with one tab (`Tracking`) carries three orthogonal markers: pinged, drafted, burndown_processed (msgId-keyed dedup for the burndown reply parser). That's the only state the script persists outside Gmail itself.
+A spreadsheet named `GmailTidy (<email>)` with one tab (`Tracking`) carries five orthogonal markers: pinged, drafted, burndown_processed (msgId-keyed dedup for the burndown reply parser), pretrashed, salvaged. Each expires per `TRACKING_TTL_DAYS_BY_TYPE`; salvaged never does. That's the only state the script persists outside Gmail itself.
 
 ## Contracts
-- Gmail's `is:important` flag is the source of truth. The script never flips it.
+- Gmail's `is:important` flag is the source of truth. The script flips it only to keep pinned/snoozed important and trashed unimportant.
 - Pretrash is category-based (`low_priority` OR `promos` OR `category:updates`), not generic `is:unimportant`.
 - Pinned threads are always promoted to important.
 - Stash requires `is:important has:attachment`.
-- Bunch only labels importants.
-- Ping is one-shot per thread. Tracking row is permanent.
+- Bunch only labels importants from the last `BUNCH_WINDOW_DAYS`, never by the user's own address.
+- Ping is one-shot per thread: the ping window closes before its tracking row expires.
 - Manually applied ↩️ is treated like an auto-ping (moved to inbox, tracked).
 - If ↩️ is applied to a pretrashed thread (🗑️), the 🗑️ is stripped (salvage override).
 - If a 🗑️ thread becomes starred, important, replied-to (`label:sent`), or labeled 🦾 or ↩️, the 🗑️ is stripped on the next cleanUp.
 - Script archives a thread when its ↩️ label is removed.
-- Stale pings (older than PING_EXPIRE_DAYS) archive passively.
+- Pings archive passively PING_EXPIRE_DAYS after the ping was applied (not message age).
 - Script drafts a reply on 🦾-labeled threads using up to VOICE_EXAMPLES_MAX sent emails labeled 🫵 as few-shot.
-- The 🦾 label stays until the draft is sent or deleted by the user; only then does the script remove it.
+- The 🦾 label stays until the draft is sent, the model declines, or its ping is dismissed or expires. A discarded draft is redrafted.
+- Removing 🗑️ by hand is remembered; that thread is never pretrashed again.
+- "From me" is an exact match on the user's address or a Send-As alias.
 - A pretrashed thread (🗑️) carries no other labels; entry points strip them.
 - Burndown sends one self-mail digest per day listing important unread unreplied threads with Riff drafts as suggestions; the user's reply to that digest is parsed into per-thread drafts (or sends, if `BURNDOWN_AUTOSEND`).
 - Each user reply to a burndown is processed at most once, keyed by message ID via `TRACKING_TYPE_BURNDOWN_PROCESSED`.
@@ -76,6 +87,12 @@ A spreadsheet named `GmailTidy (<email>)` with one tab (`Tracking`) carries thre
 ## Known limitations (accepted, not bugs)
 - GmailApp.search caps at 500. Backlogs catch up over subsequent runs.
 - Apps Script doesn't serialize triggers. No LockService.
+- Pretrash grace counts from message age, so old mail can be trashed on the next run.
+
+## Conventions
+- `cleanUp` runs each routine through `safely_`.
+- GmailApp batch calls go through `inChunks_` (100-thread cap).
+- Pure logic is tested: `node --test tests/`.
 
 ## Decided against
 - LLM flagging of mail importance (tried, removed; the classifier never beat Gmail's own call).

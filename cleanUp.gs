@@ -4,25 +4,25 @@ Author: Mateo Yadarola (teodalton@gmail.com)
 */
 
 function cleanUp() {
-  markDoneAsRead();
-  markPinnedAsImportant();
-  salvagePretrashOnSignals_();
-  deleteOlder();
-  preTrashLowPriority();
-  markTrashAsUnimportant();
-  archiveDismissedPings_();
-  archiveStalePings_();
-  ping();
-  syncManualPings_();
-  stash();
-  archiveInbox();
+  safely_('markDoneAsRead',            markDoneAsRead);
+  safely_('markPinnedAsImportant',     markPinnedAsImportant);
+  safely_('salvagePretrashOnSignals_', salvagePretrashOnSignals_);
+  safely_('deleteOlder',               deleteOlder);
+  safely_('preTrashLowPriority',       preTrashLowPriority);
+  safely_('markTrashAsUnimportant',    markTrashAsUnimportant);
+  safely_('archiveDismissedPings_',    archiveDismissedPings_);
+  safely_('archiveStalePings_',        archiveStalePings_);
+  safely_('ping',                      ping);
+  safely_('syncManualPings_',          syncManualPings_);
+  safely_('stash',                     stash);
+  safely_('archiveInbox',              archiveInbox);
 }
 
 function archiveInbox() {
   const threads = GmailApp.search('label:inbox is:read older_than:' + ARCHIVE_INBOX_AGE_DAYS + 'd -label:pinned -label:snoozed -label:"' + LABEL_PING + '" -label:"' + LABEL_AUTOREPLY + '"');
   if (threads.length === 0) return;
   Logger.log('📦 Archiving ' + threads.length + ' read threads.');
-  GmailApp.moveThreadsToArchive(threads);
+  inChunks_(threads, c => GmailApp.moveThreadsToArchive(c));
 }
 
 function ping() {
@@ -31,7 +31,8 @@ function ping() {
   const candidates = threads.filter(t => t.getMessageCount() === 1 && !pinged[t.getId()]);
   if (candidates.length === 0) return;
   Logger.log(LABEL_PING + ' Pinging ' + candidates.length + ' forgotten reads.');
-  getOrCreateUserLabel(LABEL_PING).addToThreads(candidates);
+  const pingLabel = getOrCreateUserLabel(LABEL_PING);
+  inChunks_(candidates, c => pingLabel.addToThreads(c));
   applyPingTo_(candidates);
 }
 
@@ -42,16 +43,6 @@ function salvagePretrashOnSignals_() {
   const threads = GmailApp.search('label:' + LABEL_PRETRASH + ' (is:starred OR is:important OR label:sent OR label:"' + LABEL_AUTOREPLY + '" OR label:"' + LABEL_PING + '")');
   if (threads.length === 0) return;
   Logger.log(LABEL_PRETRASH + ' Salvaging ' + threads.length + ' pretrashed threads with KEEP signals.');
-  threads.forEach(t => {
-    const reasons = [];
-    const labels = t.getLabels().map(l => l.getName());
-    if (labels.indexOf(LABEL_AUTOREPLY) >= 0) reasons.push('🦾');
-    if (labels.indexOf(LABEL_PING) >= 0) reasons.push('↩️');
-    if (t.isImportant()) reasons.push('important');
-    if (t.getMessages().some(m => m.isStarred())) reasons.push('starred');
-    if (reasons.length === 0) reasons.push('replied');
-    Logger.log('  • [' + reasons.join(',') + '] ' + t.getFirstMessageSubject());
-  });
   removeLabelIfExists_(LABEL_PRETRASH, threads);
 }
 
@@ -69,35 +60,36 @@ function syncManualPings_() {
 // Every ping, auto or manual, gets a Riff draft and returns to the inbox.
 function applyPingTo_(threads) {
   if (!threads || threads.length === 0) return;
-  getOrCreateUserLabel(LABEL_AUTOREPLY).addToThreads(threads);
-  GmailApp.moveThreadsToInbox(threads);
+  const autoreply = getOrCreateUserLabel(LABEL_AUTOREPLY);
+  inChunks_(threads, c => autoreply.addToThreads(c));
+  inChunks_(threads, c => GmailApp.moveThreadsToInbox(c));
   safely_('ping track', () => recordTrackingRows(threads.map(t => t.getId()), TRACKING_TYPE_PINGED));
 }
 
 function archiveDismissedPings_() {
-  // Dismissal contract: the user removes the ↩️ label to dismiss a ping. We never strip the label
-  // ourselves; its absence is the gesture. Tracking row stays after dismissal as a permanent
-  // "already pinged" marker so ping() won't resurface the same thread twice. Iterate the bounded
-  // inbox search (Gmail caps at 500), not the ever-growing tracked-ID map.
-  const pinged = trackingIndex_(TRACKING_TYPE_PINGED);
-  if (Object.keys(pinged).length === 0) return;
-  const inboxThreads = GmailApp.search('in:inbox -label:"' + LABEL_PING + '"');
-  const toArchive = inboxThreads.filter(t => pinged[t.getId()] && !t.isInTrash());
+  // Dismissal: the user removes ↩️; its absence on a tracked thread is the gesture. A reply that
+  // arrived after the ping is new mail, not a dismissal, so that thread stays.
+  const pingedAt = trackingTimes_(TRACKING_TYPE_PINGED);
+  if (Object.keys(pingedAt).length === 0) return;
+  const toArchive = GmailApp.search('in:inbox -label:"' + LABEL_PING + '"')
+    .filter(t => pingedAt[t.getId()] && !hasIncomingSince_(t, pingedAt[t.getId()]));
   if (toArchive.length === 0) return;
   Logger.log('📦 Archiving ' + toArchive.length + ' dismissed pings.');
   removeLabelIfExists_(LABEL_AUTOREPLY, toArchive);
-  GmailApp.moveThreadsToArchive(toArchive);
+  inChunks_(toArchive, c => GmailApp.moveThreadsToArchive(c));
 }
 
 function archiveStalePings_() {
-  // Passive dismissal: a pinged thread that aged past PING_EXPIRE_DAYS without you acting.
-  // Remove ping and riff labels so the thread is fully reset.
-  const threads = GmailApp.search('label:"' + LABEL_PING + '" in:inbox older_than:' + PING_EXPIRE_DAYS + 'd');
+  // Passive dismissal: ↩️ still on PING_EXPIRE_DAYS after the ping. Aged by the ping row, not by
+  // message dates, so a manual ↩️ on an old thread gets its full window.
+  const pingedAt = trackingTimes_(TRACKING_TYPE_PINGED);
+  const cutoff = Date.now() - PING_EXPIRE_DAYS * MS_PER_DAY;
+  const threads = GmailApp.search('label:"' + LABEL_PING + '" -in:trash').filter(t => pingedAt[t.getId()] < cutoff);
   if (threads.length === 0) return;
   Logger.log('📦 Archiving ' + threads.length + ' stale pings.');
   removeLabelIfExists_(LABEL_PING, threads);
   removeLabelIfExists_(LABEL_AUTOREPLY, threads);
-  GmailApp.moveThreadsToArchive(threads);
+  inChunks_(threads, c => GmailApp.moveThreadsToArchive(c));
 }
 
 function stash() {
@@ -112,36 +104,50 @@ function markDoneAsRead() {
   const threads = GmailApp.search('label:done is:unread -label:pinned -label:snoozed');
   if (threads.length === 0) return;
   Logger.log('📖 Marking ' + threads.length + ' done threads as read.');
-  GmailApp.markThreadsRead(threads);
+  inChunks_(threads, c => GmailApp.markThreadsRead(c));
 }
 
 function preTrashLowPriority() {
-  const threads = GmailApp.search('-label:' + LABEL_PRETRASH + ' ' + PRETRASH_CATEGORY_QUERY + ' -is:important -label:pinned -label:snoozed -label:done -is:starred -label:sent -label:"' + LABEL_AUTOREPLY + '" -label:"' + LABEL_PING + '" -label:"' + LABEL_VOICE + '"');
+  // A previously pretrashed thread that lost 🗑️ without a KEEP signal was salvaged by hand:
+  // remember it so it's never pretrashed again.
+  const pretrashedAt = trackingTimes_(TRACKING_TYPE_PRETRASHED);
+  const salvaged = trackingTimes_(TRACKING_TYPE_SALVAGED);
+  const query = '-label:' + LABEL_PRETRASH + ' ' + PRETRASH_CATEGORY_QUERY + ' -is:important -label:pinned -label:snoozed -label:done -is:starred -label:sent -label:"' + LABEL_AUTOREPLY + '" -label:"' + LABEL_PING + '" -label:"' + LABEL_VOICE + '"';
+  const candidates = GmailApp.search(query).filter(t => !salvaged[t.getId()]);
+  const newlySalvaged = candidates.filter(t => pretrashedAt[t.getId()]);
+  const threads = candidates.filter(t => !pretrashedAt[t.getId()]);
+
+  if (newlySalvaged.length > 0) {
+    Logger.log(LABEL_PRETRASH + ' Remembering ' + newlySalvaged.length + ' salvaged threads.');
+    recordTrackingRows(newlySalvaged.map(t => t.getId()), TRACKING_TYPE_SALVAGED);
+  }
   if (threads.length === 0) return;
   Logger.log(LABEL_PRETRASH + ' Pretrashing ' + threads.length + ' low-priority threads.');
 
-  getOrCreateUserLabel(LABEL_PRETRASH).addToThreads(threads);
-  GmailApp.moveThreadsToArchive(threads);
+  const pretrash = getOrCreateUserLabel(LABEL_PRETRASH);
+  inChunks_(threads, c => pretrash.addToThreads(c));
+  inChunks_(threads, c => GmailApp.moveThreadsToArchive(c));
   stripAllLabelsExcept(threads, [LABEL_PRETRASH]);
+  recordTrackingRows(threads.map(t => t.getId()), TRACKING_TYPE_PRETRASHED);
 }
 
 function deleteOlder() {
   const threads = GmailApp.search('label:' + LABEL_PRETRASH + ' older_than:' + PRETRASH_AGE_DAYS + 'd');
   if (threads.length === 0) return;
   Logger.log('🧹 Trashing ' + threads.length + ' expired pretrash threads.');
-  GmailApp.moveThreadsToTrash(threads);
+  inChunks_(threads, c => GmailApp.moveThreadsToTrash(c));
 }
 
 function markPinnedAsImportant() {
   const threads = GmailApp.search('(label:pinned OR label:snoozed) is:unimportant');
   if (threads.length === 0) return;
   Logger.log('⭐ Promoting ' + threads.length + ' pinned threads.');
-  GmailApp.markThreadsImportant(threads);
+  inChunks_(threads, c => GmailApp.markThreadsImportant(c));
 }
 
 function markTrashAsUnimportant() {
   const threads = GmailApp.search('in:trash is:important');
   if (threads.length === 0) return;
   Logger.log('📉 Demoting ' + threads.length + ' trashed importants.');
-  GmailApp.markThreadsUnimportant(threads);
+  inChunks_(threads, c => GmailApp.markThreadsUnimportant(c));
 }

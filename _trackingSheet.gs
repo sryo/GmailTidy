@@ -59,7 +59,7 @@ function trackingSpreadsheetName_() {
   // Session.getEffectiveUser().getEmail() returns empty under Google's privacy defaults.
   // Gmail.Users.getProfile is already authorized via the Gmail Advanced Service.
   try {
-    const email = Gmail.Users.getProfile('me').emailAddress;
+    const email = userEmail_();
     return email ? TRACKING_SPREADSHEET_NAME + ' (' + email + ')' : TRACKING_SPREADSHEET_NAME;
   } catch (e) {
     return TRACKING_SPREADSHEET_NAME;

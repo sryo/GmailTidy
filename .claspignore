@@ -8,4 +8,5 @@ public.gs
 LICENSE
 README.md
 assets/**
-oerroc/**
+node_modules/**
+tests/**

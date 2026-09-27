@@ -30,12 +30,19 @@ function labelVisibility(name) {
 }
 
 const MAX_THREADS_TAG = 25;
+const BUNCH_WINDOW_DAYS = 2;
+// From/Sender only. Reply-To and Return-Path lie about the actual sender (mailing-list relays,
+// bounce addresses) and produced wrong domain labels when From was missing.
+const SENDER_HEADER_FALLBACKS = ['From', 'Sender'];
+const FALLBACK_SENDER_DOMAIN = 'unknown.sender';
+const GMAIL_BATCH_MAX = 100; // GmailApp batch calls (moveThreadsTo*, markThreads*, addToThreads, removeFromThreads) reject more
 const REMOVE_EMPTY_LABELS_BATCH = 50;
 
 const EXECUTION_TIME_LIMIT_MS = 5 * 60 * 1000;
 
 const TRACKING_SPREADSHEET_NAME = 'GmailTidy';
 const GEMINI_MODEL = 'gemini-3.5-flash';
+const DRAFTER_TEMPERATURE = 0.3;
 const GEMINI_RETRY_MAX_ATTEMPTS = 3;
 const GEMINI_RETRY_BASE_MS = 500;
 const GEMINI_RETRY_RETRYABLE_CODES = [429, 500, 502, 503, 504];
@@ -45,12 +52,14 @@ const ARCHIVE_INBOX_AGE_DAYS = 1;
 const PING_PICKUP_DAYS = 2;
 const PING_EXPIRE_DAYS = 4;
 const AUTOREPLY_BATCH_LIMIT = 5;
+const RIFF_SCAN_LIMIT = 50;
 const AUTOREPLY_DRY_RUN = false;
 const VOICE_EXAMPLES_MAX = 10; // recommended; do not exceed 10 or prompt grows unwieldy
 const VOICE_EXAMPLE_BODY_CAP = 1000;
 const REPLY_THREAD_MESSAGE_WINDOW = 5;
 const REPLY_MESSAGE_BODY_CAP = 4000;
 const BURNDOWN_LIMIT = 15;
+const BURNDOWN_WINDOW_DAYS = 7;
 const BURNDOWN_AUTOSEND = false;
 const BURNDOWN_HOUR = 8;
 const BURNDOWN_SNIPPET_CAP = 240;
@@ -59,12 +68,26 @@ const BURNDOWN_MARKER_PREFIX = '━ thread ';
 const BURNDOWN_TABLE_HEADER_LEFT = 'Mail';
 const BURNDOWN_TABLE_HEADER_RIGHT = 'Your reply';
 const BURNDOWN_REPLY_PROMPT = 'Your reply:';
-const BURNDOWN_QUERY = 'is:important is:unread in:inbox -label:sent -label:' + LABEL_PRETRASH + ' -label:"' + LABEL_PUBLIC + '" newer_than:7d';
+const BURNDOWN_QUERY = 'is:important is:unread in:inbox -label:sent -label:' + LABEL_PRETRASH + ' -label:"' + LABEL_PUBLIC + '" newer_than:' + BURNDOWN_WINDOW_DAYS + 'd';
 const BURNDOWN_PROCESSED_TTL_DAYS = 14;
 
 const TRACKING_TYPE_PINGED = 'pinged';
 const TRACKING_TYPE_DRAFTED = 'drafted';
 const TRACKING_TYPE_BURNDOWN_PROCESSED = 'burndown_processed';
+const TRACKING_TYPE_PRETRASHED = 'pretrashed';
+const TRACKING_TYPE_SALVAGED = 'salvaged';
+
+// Row lifetime per tracking type; types absent here never expire. Slack keeps a row alive past the
+// window it guards, so routines keyed on it never see the thread as untracked mid-window.
+const TRACKING_TTL_SLACK_DAYS = 2;
+const DRAFTED_TTL_DAYS = 30;
+const TRACKING_TTL_DAYS_BY_TYPE = {
+  [TRACKING_TYPE_PINGED]: PING_EXPIRE_DAYS + TRACKING_TTL_SLACK_DAYS,
+  [TRACKING_TYPE_DRAFTED]: DRAFTED_TTL_DAYS,
+  [TRACKING_TYPE_BURNDOWN_PROCESSED]: BURNDOWN_PROCESSED_TTL_DAYS + TRACKING_TTL_SLACK_DAYS,
+  [TRACKING_TYPE_PRETRASHED]: PRETRASH_AGE_DAYS + TRACKING_TTL_SLACK_DAYS,
+};
+const MS_PER_DAY = 24 * 3600 * 1000;
 
 const SHEET_TAB_TRACKING = 'Tracking';
 const TRACKING_HEADERS = ['threadId', 'type', 'timestamp'];

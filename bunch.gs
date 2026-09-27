@@ -3,11 +3,6 @@ Bunches important threads by sender domain. Sweeps empty user labels.
 Author: Mateo Yadarola (teodalton@gmail.com)
 */
 
-// From/Sender only. Reply-To and Return-Path lie about the actual sender (mailing-list relays,
-// bounce addresses) and produced wrong domain labels when From was missing.
-const SENDER_HEADER_FALLBACKS = ['From', 'Sender'];
-const FALLBACK_SENDER_DOMAIN = 'unknown.sender';
-
 function bunch() {
   const startMs = Date.now();
   const labelMap = buildLabelMap();
@@ -19,12 +14,12 @@ function bunch() {
         console.log('Time budget exceeded; will resume on next trigger.');
         break;
       }
-      const threads = fetchThreads(pageToken);
+      const threads = fetchBunchThreads_(pageToken);
       if (!threads || !threads.threads || threads.threads.length === 0) {
         console.log("No more threads to process.");
         break;
       }
-      const added = processThreads(threads.threads, labelMap);
+      const added = bunchThreads_(threads.threads, labelMap);
       if (!added) console.log(`No new labels were added in this run.`);
       pageToken = threads.nextPageToken;
     } catch (e) {
@@ -36,17 +31,17 @@ function bunch() {
   console.log("Script execution finished.");
 }
 
-// is:unread re-includes already-tagged threads when new mail arrives, so late-joining senders
-// can be labeled. Idempotent: only adds missing domain labels per thread.
-function fetchThreads(pageToken) {
+// Recent window only: a late-joining sender arrives as a new message, so it lands inside the window.
+// Idempotent: only adds missing domain labels per thread.
+function fetchBunchThreads_(pageToken) {
   return Gmail.Users.Threads.list('me', {
-    q: 'is:important is:unread -' + PRETRASH_CATEGORY_QUERY + ' -in:trash',
+    q: 'is:important newer_than:' + BUNCH_WINDOW_DAYS + 'd -' + PRETRASH_CATEGORY_QUERY + ' -in:trash',
     maxResults: MAX_THREADS_TAG,
     pageToken: pageToken
   });
 }
 
-function processThreads(threads, labelMap) {
+function bunchThreads_(threads, labelMap) {
   let added = false;
   for (const thread of threads) {
     try {
@@ -58,17 +53,20 @@ function processThreads(threads, labelMap) {
 
       const existingLabelIds = new Set();
       const domains = new Set();
+      let sawOwn = false;
       for (const message of threadDetails.messages) {
         (message.labelIds || []).forEach(id => existingLabelIds.add(id));
         if (!message.payload || !message.payload.headers) continue;
-        const sender = getSenderFromHeaders(message.payload.headers);
+        const sender = getSenderFromHeaders_(message.payload.headers);
         if (!sender) continue;
-        const domain = extractDomain(sender);
+        if (isFromMe_(sender)) { sawOwn = true; continue; }
+        const domain = extractDomain_(sender);
         if (domain) domains.add(domain);
         else console.log(`Could not extract domain from '${sender}' in thread: ${thread.id}`);
       }
 
-      const targetDomains = domains.size > 0 ? [...domains] : [FALLBACK_SENDER_DOMAIN];
+      // Own messages label nothing; the fallback is only for threads with no readable sender at all.
+      const targetDomains = domains.size > 0 ? [...domains] : sawOwn ? [] : [FALLBACK_SENDER_DOMAIN];
       const missing = targetDomains.filter(d => {
         const existing = labelMap[d.toLowerCase()];
         return !existing || !existingLabelIds.has(existing.id);
@@ -86,7 +84,7 @@ function processThreads(threads, labelMap) {
   return added;
 }
 
-function getSenderFromHeaders(headers) {
+function getSenderFromHeaders_(headers) {
   for (const name of SENDER_HEADER_FALLBACKS) {
     const h = headers.find(header => header.name === name);
     if (h && h.value) return h.value;
@@ -94,7 +92,7 @@ function getSenderFromHeaders(headers) {
   return null;
 }
 
-function extractDomain(sender) {
+function extractDomain_(sender) {
   const match = sender.match(/@([a-zA-Z0-9.-]+)/);
   return match ? match[1] : null;
 }
@@ -119,7 +117,7 @@ function removeEmptyLabels() {
   for (i = offset; i < offset + limit && i < labels.length; i++) {
     const name = labels[i].getName();
     if (PROTECTED_LABELS.includes(name)) continue;
-    if (labels[i].getThreads().length === 0) {
+    if (labels[i].getThreads(0, 1).length === 0) {
       labels[i].deleteLabel();
       Logger.log('🏷️ Deleted empty label: ' + name);
     }

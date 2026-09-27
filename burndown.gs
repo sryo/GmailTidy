@@ -9,9 +9,9 @@ function sendBurndown() {
     Logger.log('🔥 Burndown: nothing to triage.');
     return;
   }
-  const userEmail = Gmail.Users.getProfile('me').emailAddress;
+  const userEmail = userEmail_();
   const draftMap = buildDraftMapForThreads_();
-  const items = threads.map(t => buildBurndownItem_(t, draftMap, userEmail));
+  const items = threads.map(t => buildBurndownItem_(t, draftMap));
   const summaries = generateBurndownSummaries_(items);
   items.forEach(i => { i.summary = summaries[i.threadId] || ''; });
   const subject = BURNDOWN_SUBJECT_PREFIX + ' ' + formatBurndownDate_();
@@ -20,10 +20,9 @@ function sendBurndown() {
   Logger.log('🔥 Burndown sent ' + items.length + ' threads to ' + userEmail + '.');
 }
 
-function buildBurndownItem_(thread, draftMap, userEmail) {
-  const lower = userEmail.toLowerCase();
+function buildBurndownItem_(thread, draftMap) {
   const messages = thread.getMessages();
-  const latest = messages.slice().reverse().find(m => !m.getFrom().toLowerCase().includes(lower))
+  const latest = messages.slice().reverse().find(m => !isFromMe_(m.getFrom()))
               || messages[messages.length - 1];
   const draft = draftMap.get(thread.getId());
   const riffBody = draft
@@ -108,9 +107,6 @@ function processBurndownReplies_() {
   // the same digest thread can carry multiple distinct reply messages, each acting on a different
   // set of threads. Renaming the column to be polymorphic would ripple through three other features.
   const processed = trackingIndex_(TRACKING_TYPE_BURNDOWN_PROCESSED);
-  const userEmail = Gmail.Users.getProfile('me').emailAddress;
-  const lower = userEmail.toLowerCase();
-
   const digestThreads = GmailApp.search('subject:"' + BURNDOWN_SUBJECT_PREFIX + '" label:sent -in:trash newer_than:' + BURNDOWN_PROCESSED_TTL_DAYS + 'd');
   if (digestThreads.length === 0) return;
 
@@ -122,12 +118,13 @@ function processBurndownReplies_() {
     const digestDate = messages[0].getDate();
     for (let i = 1; i < messages.length; i++) {
       const msg = messages[i];
-      if (!msg.getFrom().toLowerCase().includes(lower)) continue;
+      if (msg.isDraft()) continue;
+      if (!isFromMe_(msg.getFrom())) continue;
       const msgId = msg.getId();
       if (processed[msgId]) continue;
       try {
         const entries = parseBurndownReply_(msg.getBody(), msg.getPlainBody());
-        actOnBurndownEntries_(entries, digestDate, userEmail);
+        actOnBurndownEntries_(entries, digestDate);
         actedMsgIds.push(msgId);
       } catch (e) {
         console.log('Burndown parse failed for ' + msgId + ': ' + e.toString());
@@ -215,7 +212,7 @@ function parseBurndownPlain_(text) {
   });
 }
 
-function actOnBurndownEntries_(entries, digestSentDate, userEmail) {
+function actOnBurndownEntries_(entries, digestSentDate) {
   if (entries.length === 0) return;
   const draftMap = buildDraftMapForThreads_();
   entries.forEach(entry => {
@@ -225,16 +222,16 @@ function actOnBurndownEntries_(entries, digestSentDate, userEmail) {
     try { thread = GmailApp.getThreadById(entry.threadId); }
     catch (e) { console.log('🔥 Burndown: thread ' + entry.threadId + ' unreachable.'); return; }
     if (!thread || thread.isInTrash()) return;
-    if (wasReplySentAfter_(thread, userEmail, digestSentDate)) {
+    if (wasReplySentAfter_(thread, digestSentDate)) {
       Logger.log('🔥 Burndown skipping ' + entry.threadId + ': user already replied.');
       return;
     }
-    sendOrDraftBurndownReply_(thread, text, draftMap.get(entry.threadId), userEmail);
+    sendOrDraftBurndownReply_(thread, text, draftMap.get(entry.threadId));
   });
 }
 
-function sendOrDraftBurndownReply_(thread, text, existingDraft, userEmail) {
-  const { body, htmlBody } = buildReplyBody_(thread, text, userEmail);
+function sendOrDraftBurndownReply_(thread, text, existingDraft) {
+  const { body, htmlBody } = buildReplyBody_(thread, text);
   if (existingDraft) {
     const draftMsg = existingDraft.getMessage();
     existingDraft.update(draftMsg.getTo(), draftMsg.getSubject(), body, {
