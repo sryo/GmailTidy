@@ -64,6 +64,6 @@ function pruneTracking_() {
   }
   if (rowsToDelete.length > 0) {
     deleteTrackingRows_(rowsToDelete);
-    Logger.log('🧹 Pruned ' + rowsToDelete.length + ' tracking rows.');
+    console.log('🧹 Pruned ' + rowsToDelete.length + ' tracking rows');
   }
 }

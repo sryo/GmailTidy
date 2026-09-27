@@ -38,6 +38,7 @@ const FALLBACK_SENDER_DOMAIN = 'unknown.sender';
 const GMAIL_BATCH_MAX = 100; // GmailApp batch calls (moveThreadsTo*, markThreads*, addToThreads, removeFromThreads) reject more
 const REMOVE_EMPTY_LABELS_BATCH = 50;
 
+const LOG_SUBJECTS_MAX = 3;
 const EXECUTION_TIME_LIMIT_MS = 5 * 60 * 1000;
 
 const TRACKING_SPREADSHEET_NAME = 'GmailTidy';

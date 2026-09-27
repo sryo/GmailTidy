@@ -6,29 +6,27 @@ Author: Mateo Yadarola (teodalton@gmail.com)
 function bunch() {
   const startMs = Date.now();
   const labelMap = buildLabelMap();
+  const domainsAdded = new Set();
+  let threadsLabeled = 0;
   let pageToken;
 
   do {
     try {
       if (timeBudgetExceeded(startMs)) {
-        console.log('Time budget exceeded; will resume on next trigger.');
+        console.warn('🏷️ Bunch: time budget hit, resuming next run');
         break;
       }
       const threads = fetchBunchThreads_(pageToken);
-      if (!threads || !threads.threads || threads.threads.length === 0) {
-        console.log("No more threads to process.");
-        break;
-      }
-      const added = bunchThreads_(threads.threads, labelMap);
-      if (!added) console.log(`No new labels were added in this run.`);
+      if (!threads || !threads.threads || threads.threads.length === 0) break;
+      threadsLabeled += bunchThreads_(threads.threads, labelMap, domainsAdded);
       pageToken = threads.nextPageToken;
     } catch (e) {
-      console.error(`An error occurred during execution: ${e.toString()}`);
+      console.error('🏷️ Bunch failed: ' + e.toString());
       break;
     }
   } while (pageToken);
 
-  console.log("Script execution finished.");
+  if (threadsLabeled > 0) console.log('🏷️ Bunched ' + threadsLabeled + ' threads: ' + [...domainsAdded].join(', '));
 }
 
 // Recent window only: a late-joining sender arrives as a new message, so it lands inside the window.
@@ -41,8 +39,9 @@ function fetchBunchThreads_(pageToken) {
   });
 }
 
-function bunchThreads_(threads, labelMap) {
-  let added = false;
+// Returns how many threads got new labels; collects the added domains into domainsAdded.
+function bunchThreads_(threads, labelMap, domainsAdded) {
+  let labeled = 0;
   for (const thread of threads) {
     try {
       const threadDetails = Gmail.Users.Threads.get('me', thread.id, {
@@ -62,7 +61,7 @@ function bunchThreads_(threads, labelMap) {
         if (isFromMe_(sender)) { sawOwn = true; continue; }
         const domain = extractDomain_(sender);
         if (domain) domains.add(domain);
-        else console.log(`Could not extract domain from '${sender}' in thread: ${thread.id}`);
+        else console.warn('🏷️ Bunch: no domain in sender ' + sender);
       }
 
       // Own messages label nothing; the fallback is only for threads with no readable sender at all.
@@ -75,13 +74,13 @@ function bunchThreads_(threads, labelMap) {
 
       const addLabelIds = missing.map(d => getOrCreateLabelCached(labelMap, d).id);
       Gmail.Users.Threads.modify({ addLabelIds }, 'me', thread.id);
-      Logger.log(`Added ${missing.length} domain label(s) to thread ${thread.id}: ${missing.join(', ')}`);
-      added = true;
+      missing.forEach(d => domainsAdded.add(d));
+      labeled++;
     } catch (e) {
-      console.error(`Failed to process thread ${thread.id}. Error: ${e.toString()}`);
+      console.error('🏷️ Bunch failed on ' + thread.id + ': ' + e.toString());
     }
   }
-  return added;
+  return labeled;
 }
 
 function getSenderFromHeaders_(headers) {
@@ -105,12 +104,10 @@ function removeEmptyLabels() {
   let offset = parseInt(userProperties.getProperty(PROPS.OFFSET), 10);
   if (isNaN(offset) || offset >= labels.length) offset = 0;
 
-  if (labels.length === 0) {
-    Logger.log("No labels to process.");
-  } else {
+  if (labels.length > 0) {
     const end = Math.min(offset + limit, labels.length);
     const filled = Math.min(10, Math.floor(end / labels.length * 10));
-    Logger.log('🟩'.repeat(filled) + '⬜'.repeat(10 - filled) + ' ' + offset + '-' + end + ' / ' + labels.length);
+    console.log('🟩'.repeat(filled) + '⬜'.repeat(10 - filled) + ' ' + offset + '-' + end + ' / ' + labels.length);
   }
 
   let i;
@@ -119,7 +116,7 @@ function removeEmptyLabels() {
     if (PROTECTED_LABELS.includes(name)) continue;
     if (labels[i].getThreads(0, 1).length === 0) {
       labels[i].deleteLabel();
-      Logger.log('🏷️ Deleted empty label: ' + name);
+      console.log('🏷️ Deleted empty label: ' + name);
     }
   }
   userProperties.setProperty(PROPS.OFFSET, i);

@@ -6,7 +6,7 @@ Author: Mateo Yadarola (teodalton@gmail.com)
 function generateReplyDraft(thread, voiceExamples) {
   const apiKey = PropertiesService.getScriptProperties().getProperty(PROPS.GEMINI_API_KEY);
   if (!apiKey) {
-    console.log('drafter: GEMINI_API_KEY not set, abstaining.');
+    console.warn('🦾 Riff: GEMINI_API_KEY not set, abstaining');
     return null;
   }
   const ctx = buildReplyContext_(thread, voiceExamples);

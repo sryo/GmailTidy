@@ -6,7 +6,7 @@ Author: Mateo Yadarola (teodalton@gmail.com)
 function sendBurndown() {
   const threads = GmailApp.search(BURNDOWN_QUERY, 0, BURNDOWN_LIMIT);
   if (threads.length === 0) {
-    Logger.log('🔥 Burndown: nothing to triage.');
+    console.log('🔥 Burndown: nothing to triage');
     return;
   }
   const userEmail = userEmail_();
@@ -17,7 +17,7 @@ function sendBurndown() {
   const subject = BURNDOWN_SUBJECT_PREFIX + ' ' + formatBurndownDate_();
   const { plainBody, htmlBody } = composeBurndownBody_(items);
   GmailApp.sendEmail(userEmail, subject, plainBody, { htmlBody, name: BURNDOWN_SUBJECT_PREFIX });
-  Logger.log('🔥 Burndown sent ' + items.length + ' threads to ' + userEmail + '.');
+  console.log('🔥 Burndown sent with ' + items.length + ' threads' + subjects_(threads));
 }
 
 function buildBurndownItem_(thread, draftMap) {
@@ -40,7 +40,7 @@ function buildBurndownItem_(thread, draftMap) {
 function generateBurndownSummaries_(items) {
   const apiKey = PropertiesService.getScriptProperties().getProperty(PROPS.GEMINI_API_KEY);
   if (!apiKey) {
-    console.log('burndown-summarizer: GEMINI_API_KEY not set, skipping summaries.');
+    console.warn('🔥 Burndown: GEMINI_API_KEY not set, skipping summaries');
     return {};
   }
   const itemsBlock = items
@@ -127,14 +127,14 @@ function processBurndownReplies_() {
         actOnBurndownEntries_(entries, digestDate);
         actedMsgIds.push(msgId);
       } catch (e) {
-        console.log('Burndown parse failed for ' + msgId + ': ' + e.toString());
+        console.error('🔥 Burndown parse failed for reply ' + msgId + ': ' + e.toString());
       }
     }
   });
 
   if (actedMsgIds.length > 0) {
     recordTrackingRows(actedMsgIds, TRACKING_TYPE_BURNDOWN_PROCESSED);
-    Logger.log('🔥 Burndown processed ' + actedMsgIds.length + ' reply message(s).');
+    console.log('🔥 Burndown processed ' + actedMsgIds.length + ' replies');
   }
 }
 
@@ -220,10 +220,10 @@ function actOnBurndownEntries_(entries, digestSentDate) {
     if (!text) return;
     let thread;
     try { thread = GmailApp.getThreadById(entry.threadId); }
-    catch (e) { console.log('🔥 Burndown: thread ' + entry.threadId + ' unreachable.'); return; }
+    catch (e) { console.warn('🔥 Burndown: thread ' + entry.threadId + ' unreachable'); return; }
     if (!thread || thread.isInTrash()) return;
     if (wasReplySentAfter_(thread, digestSentDate)) {
-      Logger.log('🔥 Burndown skipping ' + entry.threadId + ': user already replied.');
+      console.log('🔥 Burndown skipping, already replied' + subjects_([thread]));
       return;
     }
     sendOrDraftBurndownReply_(thread, text, draftMap.get(entry.threadId));
@@ -241,17 +241,17 @@ function sendOrDraftBurndownReply_(thread, text, existingDraft) {
     });
     if (BURNDOWN_AUTOSEND) {
       existingDraft.send();
-      Logger.log('🔥 Burndown sent reply to ' + thread.getId() + '.');
+      console.log('🔥 Burndown sent reply' + subjects_([thread]));
     } else {
-      Logger.log('🔥 Burndown updated draft for ' + thread.getId() + '.');
+      console.log('🔥 Burndown updated draft' + subjects_([thread]));
     }
     return;
   }
   if (BURNDOWN_AUTOSEND) {
     thread.reply(body, { htmlBody });
-    Logger.log('🔥 Burndown sent reply to ' + thread.getId() + '.');
+    console.log('🔥 Burndown sent reply' + subjects_([thread]));
   } else {
     thread.createDraftReply(body, { htmlBody });
-    Logger.log('🔥 Burndown drafted reply for ' + thread.getId() + '.');
+    console.log('🔥 Burndown drafted reply' + subjects_([thread]));
   }
 }

@@ -17,12 +17,12 @@ function getOrCreateTrackingSpreadsheet_() {
   if (id) {
     let trashed = false;
     try { trashed = DriveApp.getFileById(id).isTrashed(); }
-    catch (e) { console.log('Drive trashed-check skipped: ' + e.toString()); }
+    catch (e) { console.warn('Drive trashed-check skipped: ' + e.toString()); }
     if (!trashed) {
       try { ss = SpreadsheetApp.openById(id); }
-      catch (e) { console.log('Stored sheet not openable: ' + e.toString()); }
+      catch (e) { console.warn('Stored sheet not openable: ' + e.toString()); }
     } else {
-      console.log('Stored sheet is in trash; falling through.');
+      console.warn('Stored sheet is in trash; falling through');
     }
   }
 
@@ -35,10 +35,10 @@ function getOrCreateTrackingSpreadsheet_() {
         if (f.isTrashed()) continue;
         ss = SpreadsheetApp.openById(f.getId());
         props.setProperty(PROPS.TRACKING_SHEET_ID, f.getId());
-        Logger.log('Recovered existing sheet via Drive search: ' + ss.getUrl());
+        console.log('Recovered existing sheet via Drive search: ' + ss.getUrl());
         break;
       }
-    } catch (e) { console.log('Drive search skipped: ' + e.toString()); }
+    } catch (e) { console.warn('Drive search skipped: ' + e.toString()); }
   }
 
   // 3. Create fresh, last resort. Drop the default tab so Tracking is the only one.
@@ -47,7 +47,7 @@ function getOrCreateTrackingSpreadsheet_() {
     props.setProperty(PROPS.TRACKING_SHEET_ID, ss.getId());
     ensureSheet_(ss, SHEET_TAB_TRACKING, TRACKING_HEADERS);
     ss.getSheets().forEach(s => { if (s.getName() !== SHEET_TAB_TRACKING) ss.deleteSheet(s); });
-    Logger.log('Created tracking sheet: ' + ss.getUrl());
+    console.log('Created tracking sheet: ' + ss.getUrl());
   }
   if (ss.getName() !== name) ss.rename(name);
   ensureSheet_(ss, SHEET_TAB_TRACKING, TRACKING_HEADERS);

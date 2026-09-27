@@ -50,7 +50,13 @@ function timeBudgetExceeded(startMs) {
 // Calls fn() and swallows any throw, logging "<label> failed: ...".
 // Used to keep one failing subroutine from aborting a cleanup pass.
 function safely_(label, fn) {
-  try { return fn(); } catch (e) { console.log(label + ' failed: ' + e.toString()); }
+  try { return fn(); } catch (e) { console.error(label + ' failed: ' + e.toString()); }
+}
+
+// Log suffix naming up to LOG_SUBJECTS_MAX threads, so a line says which mail it touched.
+function subjects_(threads) {
+  const shown = threads.slice(0, LOG_SUBJECTS_MAX).map(t => t.getFirstMessageSubject() || '(no subject)');
+  return ': ' + shown.join(' · ') + (threads.length > shown.length ? ' …' : '');
 }
 
 // Drops quoted reply history ("On ... wrote:" + leading-`>` lines) from a
@@ -116,16 +122,17 @@ function callGemini_(prompt, apiKey, opts) {
         if (!text) return null;
         return JSON.parse(text);
       }
-      console.log(`${logPrefix}: API ${code}: ${response.getContentText().substring(0, 200)}`);
-      if (GEMINI_RETRY_RETRYABLE_CODES.indexOf(code) < 0) return null;
+      const retryable = GEMINI_RETRY_RETRYABLE_CODES.indexOf(code) >= 0;
+      console[retryable ? 'warn' : 'error'](`${logPrefix}: API ${code}: ${response.getContentText().substring(0, 200)}`);
+      if (!retryable) return null;
     } catch (e) {
       threw = true;
-      console.log(`${logPrefix}: ${e.toString()}`);
+      console.warn(`${logPrefix}: ${e.toString()}`);
     }
     if (attempt < GEMINI_RETRY_MAX_ATTEMPTS) {
       Utilities.sleep(GEMINI_RETRY_BASE_MS * Math.pow(2, attempt - 1));
     } else if (threw || GEMINI_RETRY_RETRYABLE_CODES.indexOf(lastCode) >= 0) {
-      console.log(`${logPrefix}: gave up after ${GEMINI_RETRY_MAX_ATTEMPTS} attempts (lastCode=${lastCode})`);
+      console.error(`${logPrefix}: gave up after ${GEMINI_RETRY_MAX_ATTEMPTS} attempts (lastCode=${lastCode})`);
     }
   }
   return null;

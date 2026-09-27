@@ -28,9 +28,9 @@ function riff() {
         rowsToDelete[drafted[threadId]] = true;
         if (wasReplySentAfter_(t, draftedAt)) {
           autoreply.removeFromThreads([t]);
-          Logger.log('🦾 Riff sent for ' + threadId + '.');
+          console.log('🦾 Riff sent' + subjects_([t]));
         } else {
-          Logger.log('🦾 Riff discarded on ' + threadId + ', will redraft.');
+          console.log('🦾 Riff discarded, will redraft' + subjects_([t]));
         }
         return;
       }
@@ -48,13 +48,13 @@ function riff() {
       const result = generateReplyDraft(t, voiceExamples);
       if (!result) return; // abstain on API failure, retry next tick
       if (!result.draft) {
-        Logger.log('🦾 Riff skipped ' + threadId + ' (' + (result.notes || 'no draft returned') + ').');
+        console.log('🦾 Riff skipped (' + (result.notes || 'no draft returned') + ')' + subjects_([t]));
         autoreply.removeFromThreads([t]);
         return;
       }
 
       if (AUTOREPLY_DRY_RUN) {
-        Logger.log('🦾 [DRY RUN] would draft for ' + threadId + ':\n' + result.draft);
+        console.log('🦾 [DRY RUN] would draft' + subjects_([t]) + '\n' + result.draft);
       } else {
         const { body, htmlBody } = buildReplyBody_(t, result.draft);
         t.createDraftReply(body, { htmlBody });
@@ -62,9 +62,9 @@ function riff() {
         t.markUnread();
       }
       recordTrackingRows([threadId], TRACKING_TYPE_DRAFTED);
-      Logger.log('🦾 Riffing reply for ' + threadId + '.');
+      console.log('🦾 Riffing reply' + subjects_([t]));
     } catch (e) {
-      console.log('riff ' + t.getId() + ': ' + e.toString());
+      console.error('🦾 Riff failed on ' + t.getId() + ': ' + e.toString());
     }
   });
 
