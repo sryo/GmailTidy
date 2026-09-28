@@ -55,6 +55,8 @@ body {
 .chip { flex: none; font-size: 11.5px; font-weight: 600; height: 21px; padding: 0 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 3px; }
 .chip.trash { background: rgba(229, 57, 53, 0.1); color: var(--meh); }
 .chip.ping { background: rgba(245, 124, 0, 0.14); color: #c25e00; }
+.chip.stash { background: rgba(142, 68, 173, 0.1); color: var(--stash); }
+.chip.bunch { background: rgba(67, 160, 71, 0.12); color: #2e7d32; }
 .chip.draft { background: rgba(229, 57, 53, 0.1); color: #c5221f; }
 
 .captions { position: absolute; left: 20px; right: 20px; height: 56px; }
@@ -64,6 +66,5 @@ body {
 .cap b.meh { color: var(--meh); }
 .cap b.ping { color: var(--ping); }
 .cap b.burn { color: var(--text); }
-/* Emoji tile inside a headline, tinted by --c (hero, social preview). */
-.t { display: inline-flex; align-items: center; justify-content: center; width: 1.02em; height: 1.02em; border-radius: 22%; font-size: 0.82em; vertical-align: -0.1em; margin: 0 0.06em; background: color-mix(in srgb, var(--c) 14%, transparent); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 22%, transparent); }
-.t span { font-size: 0.72em; letter-spacing: 0; }
+/* Emoji inline in a headline (hero, social preview). */
+.t { font-size: 0.82em; letter-spacing: 0; margin: 0 0.04em; }
