@@ -8,8 +8,7 @@
   body { background: linear-gradient(135deg, #f4f6fa 0%, #e6eaf1 100%); }
   .copy { position: absolute; left: 72px; top: 0; bottom: 0; width: 580px; display: flex; flex-direction: column; justify-content: center; }
   .repo { font-family: 'SF Mono', Menlo, monospace; font-size: 22px; color: rgba(0,0,0,.45); margin-bottom: 18px; }
-  h1.title { font-size: 104px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; }
-  .tagline { font-size: 39px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.18; margin-top: 22px; color: rgba(0,0,0,.82); }
+  h1.title { font-size: 58px; white-space: nowrap; font-weight: 800; letter-spacing: -0.045em; line-height: 1.14; }
   .sub { font-size: 23px; color: rgba(0,0,0,.52); margin-top: 20px; line-height: 1.4; }
   .five { display: flex; gap: 10px; margin-top: 34px; }
   .five span { font-size: 22px; font-weight: 700; height: 42px; padding: 0 18px; border-radius: 999px; display: flex; align-items: center; color: #fff; }
@@ -35,9 +34,8 @@
 <body>
   <div class="copy">
     <div class="repo">sryo/GmailTidy</div>
-    <h1 class="title">GmailTidy</h1>
-    <div class="tagline">Gmail inbox zero<br>that runs itself.</div>
-    <div class="sub">Google Apps Script. Auto archive, auto delete old emails, follow-up reminders.</div>
+    <h1 class="title">Your <span class="t" style="--c:var(--hot)"><span>📥</span></span> inbox,<br><span class="t" style="--c:var(--meh)"><span>🗑️</span></span> promos and<br><span class="t" style="--c:var(--ping)"><span>↩️</span></span> follow-ups,<br><span class="t" style="--c:var(--stash)"><span>✨</span></span> handled on<br>their own.</h1>
+    <div class="sub">Gmail inbox zero, as a Google Apps Script. Auto archive, auto delete old emails, follow-up reminders.</div>
     <div class="five">
       <span style="background:var(--hot)">Hot</span>
       <span style="background:var(--meh)">Meh</span>
