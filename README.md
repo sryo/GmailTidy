@@ -1,6 +1,15 @@
 # GmailTidy
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/hero-dark.png">
+  <img alt="Your inbox, promos and follow-ups, handled on their own." src="assets/hero-light.png">
+</picture>
+
 Google Apps Script for Gmail inbox zero: auto archive, auto delete old emails, follow-up reminders. Runs on its own inside your Google account.
+
+**[Set up in 3 steps →](#setup-one-time)** · [How it works](#the-five)
+
+<sub>▶ WATCH</sub> Three days of an inbox, in fifteen seconds.
 
 ![Three days of an inbox: promos move to pretrash, read mail is archived after a day, an unanswered thread comes back with a Ping label](assets/hot-meh-ping.gif)
 

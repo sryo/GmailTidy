@@ -11,4 +11,6 @@ gif() {
 gif scene1 hot-meh-ping
 gif scene2 burndown
 python3 render.py still social.html ../social-preview.png 1280 640 1
+python3 render.py still hero.html ../hero-light.png 1280 240 2 light
+python3 render.py still hero.html ../hero-dark.png 1280 240 2 dark
 rm -rf .frames

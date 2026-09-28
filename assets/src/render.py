@@ -1,7 +1,7 @@
 """Render a seekable scene to PNG frames, or a static page to one PNG.
 
 usage: render.py frames <scene.html> <out_dir> <width> <height> <fps> [t1,t2,...]
-       render.py still  <page.html>  <out.png> <width> <height> <scale>
+       render.py still  <page.html>  <out.png> <width> <height> <scale> [light|dark]
 """
 import pathlib
 import sys
@@ -14,11 +14,12 @@ url = pathlib.Path(src).resolve().as_uri()
 with sync_playwright() as p:
     browser = p.chromium.launch()
     scale = float(sys.argv[6]) if mode == "still" else 2
-    page = browser.new_page(viewport={"width": width, "height": height}, device_scale_factor=scale)
+    scheme = sys.argv[7] if mode == "still" and len(sys.argv) > 7 else "light"
+    page = browser.new_page(viewport={"width": width, "height": height}, device_scale_factor=scale, color_scheme=scheme)
     page.goto(url)
     page.evaluate("document.fonts.ready")
     if mode == "still":
-        page.screenshot(path=out)
+        page.screenshot(path=out, omit_background=True)
     else:
         fps = int(sys.argv[6])
         page.wait_for_function("window.READY === true")
