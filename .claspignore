@@ -1,6 +1,3 @@
-# Files that live in separate Apps Script projects
-public.gs
-
 # Local-only
 .git/**
 .claude/**

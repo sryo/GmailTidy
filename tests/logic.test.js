@@ -11,7 +11,7 @@ const ctx = vm.createContext({
   GmailApp: { getAliases: () => ['Alias@Example.org'] },
 });
 const root = path.join(__dirname, '..');
-['_config.gs', '_util.gs', 'burndown.gs', 'bunch.gs'].forEach(f =>
+['_config.gs', '_util.gs', 'burndown.gs', 'bunch.gs', 'public.gs'].forEach(f =>
   vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f }));
 const run = src => vm.runInContext(src, ctx);
 
@@ -42,4 +42,13 @@ test('stripQuotedReplyHistory_ drops quoted history', () => {
 test('extractDomain_ reads the sender domain', () => {
   assert.strictEqual(run('extractDomain_')('Bob <bob@mail.example.com>'), 'mail.example.com');
   assert.strictEqual(run('extractDomain_')('no address'), null);
+});
+
+test('sanitizeEmailHtml strips scripts, handlers, script URLs, and remote images', () => {
+  const clean = run('sanitizeEmailHtml')(
+    '<p onclick="x()">hi</p><script>alert(1)</script>' +
+    '<a href="javascript:x()">a</a><a href=javascript:x()>b</a><img src=x onerror=x()>' +
+    '<img alt=t src="https://t.co/p.gif"><img src=//t.co/p.gif>');
+  assert.ok(!/script|onclick|onerror|javascript|t\.co/i.test(clean), clean);
+  assert.ok(clean.includes('<p>hi</p>'));
 });

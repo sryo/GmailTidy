@@ -45,6 +45,8 @@ Routines inside `cleanUpDeep`: `riff`, `processBurndownReplies_`.
 
 Routines inside `dailyMaintenance`: `pruneTracking_`.
 
+After `clasp push`, run `clasp redeploy <id>` on the deployment described `Public` (see `clasp deployments`) so the 🌎 page serves the new code at the same URL.
+
 After changing any `TRIGGER_*_MIN` constant, re-run `install` (it always recreates triggers).
 
 ## User assumptions
@@ -57,6 +59,7 @@ labels. Manual gestures the system reads as signal:
 - Apply **↩️** = reply later; thread returns to Hot and is tracked like an auto-ping.
 - Remove **↩️** = dismiss a ping; the thread should be archived.
 - Apply **🦾** = draft me a reply via LLM. Stays on the thread until the draft is sent or deleted.
+- Apply **🌎** = publish this thread on the web page served by `doGet`. Remove it to unpublish.
 - Apply **🫵** = voice corpus *and* hands-off marker: thread is excluded from auto-ping and auto-pretrash. The drafter still pulls 🫵-labeled sent emails as voice examples.
 
 One-time setup: label a handful of your sent emails with **🫵** so the drafter has voice examples to mimic.
@@ -83,6 +86,9 @@ A spreadsheet named `GmailTidy (<email>)` with one tab (`Tracking`) carries five
 - A pretrashed thread (🗑️) carries no other labels; entry points strip them.
 - Burndown sends one self-mail digest per day listing important unread unreplied threads with Riff drafts as suggestions; the user's reply to that digest is parsed into per-thread drafts (or sends, if `BURNDOWN_AUTOSEND`).
 - Each user reply to a burndown is processed at most once, keyed by message ID via `TRACKING_TYPE_BURNDOWN_PROCESSED`.
+- The 🌎 page renders live from Gmail and shows only 🌎-labeled threads, with scripts and remote images stripped. The web app deploys as "Execute as: Me", "Who has access: Anyone", described `Public`.
+- The 🌎 page URL is mailed to the user once, on the first request to that URL.
+- 🌎 threads are left out of the burndown.
 
 ## Known limitations (accepted, not bugs)
 - GmailApp.search caps at 500. Backlogs catch up over subsequent runs.

@@ -2,40 +2,23 @@
 Share Gmail threads labeled 🌎 Public as a web page.
 Author: Mateo Yadarola (teodalton@gmail.com)
 
-Standalone on purpose: this file is clasp-ignored and deployed as its own Apps Script project
-(the web app needs different access settings than the trigger scripts), so it carries its own
-helpers and constants instead of depending on _config.gs/_util.gs. The main project's install()
-creates the label.
-
-Deployment: must be deployed as "Execute as: me" with access "Anyone with the link" at most.
-NEVER deploy as "Anyone, even anonymous"; that exposes every 🌎-labeled thread to the open internet.
+Served by doGet when this project is deployed as a web app ("Execute as: Me", "Who has access:
+Anyone"). Only 🌎-labeled threads are ever rendered: applying the label is the decision to publish.
 */
 
-const PUBLIC_LABEL_NAME = '🌎 Public';
-const PUBLIC_MAX_THREADS = 100;
-const PUBLIC_CACHE_TTL_SEC = 60;
-
-function escapeHtml(text) {
-  if (!text) return '';
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 // Conservative deny-list sanitizer for HTML email bodies before embedding in a web-app page.
-// Personal-use scope: blocks script execution and dangerous URL schemes without preserving rich formatting perfectly.
+// Personal-use scope: blocks script execution, dangerous URL schemes, and remote images (sender tracking
+// pixels would fire for every viewer) without preserving rich formatting perfectly.
 function sanitizeEmailHtml(html) {
   if (!html) return '';
   var s = html;
   s = s.replace(/<(script|iframe|object|embed|style|link|meta|base)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
   s = s.replace(/<(script|iframe|object|embed|style|link|meta|base)\b[^>]*\/?>/gi, '');
+  s = s.replace(/<img\b[^>]*\ssrc\s*=\s*["']?\s*(?:https?:)?\/\/[^>]*>/gi, '');
   s = s.replace(/\s+on[a-z]+\s*=\s*"[^"]*"/gi, '');
   s = s.replace(/\s+on[a-z]+\s*=\s*'[^']*'/gi, '');
   s = s.replace(/\s+on[a-z]+\s*=\s*[^\s>]+/gi, '');
-  s = s.replace(/(href|src|action|formaction)\s*=\s*"\s*(javascript|data:text\/html)[^"]*"/gi, '$1="#"');
-  s = s.replace(/(href|src|action|formaction)\s*=\s*'\s*(javascript|data:text\/html)[^']*'/gi, "$1='#'");
+  s = s.replace(/(href|src|action|formaction)\s*=\s*(?:"\s*(?:javascript|data:text\/html)[^"]*"|'\s*(?:javascript|data:text\/html)[^']*'|(?:javascript|data:text\/html)[^\s>]*)/gi, '$1="#"');
   return s;
 }
 
@@ -180,12 +163,12 @@ function writeThreadsToHtml(threadArray) {
 
 function publishPublicThreads() {
   const cache = CacheService.getScriptCache();
-  let html = cache.get('public_threads_html');
+  let html = cache.get(PUBLIC_CACHE_KEY);
   if (!html) {
-    const threads = getThreadsInLabel(PUBLIC_LABEL_NAME);
+    const threads = getThreadsInLabel(LABEL_PUBLIC);
     html = writeThreadsToHtml(threads);
     try {
-      cache.put('public_threads_html', html, PUBLIC_CACHE_TTL_SEC);
+      cache.put(PUBLIC_CACHE_KEY, html, PUBLIC_CACHE_TTL_SEC);
     } catch (e) {
       console.log(`Skipped caching (likely >100KB): ${e.toString()}`);
     }
@@ -196,6 +179,20 @@ function publishPublicThreads() {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
+// The editor reports the owner-only /dev URL, so only a live /exec request can tell us the shareable one.
+function mailPublicUrlOnce_() {
+  const props = PropertiesService.getScriptProperties();
+  const url = ScriptApp.getService().getUrl();
+  if (!url || !url.endsWith('/exec') || props.getProperty(PROPS.PUBLIC_URL_SENT) === url) return;
+  GmailApp.sendEmail(userEmail_(), PUBLIC_URL_SUBJECT, url);
+  props.setProperty(PROPS.PUBLIC_URL_SENT, url);
+}
+
 function doGet() {
+  try {
+    mailPublicUrlOnce_();
+  } catch (e) {
+    console.error(`Failed to mail public URL: ${e.toString()}`);
+  }
   return publishPublicThreads();
 }

@@ -33,7 +33,7 @@ If this approach resonates, check out [Posta](https://sryo.github.io/Posta/), my
 
 **`cleanUp.gs`**. Schedules low-priority mail for deletion and keeps pinned/important state consistent.
 
-**`public.gs`**. Publishes Gmail threads labeled `🌎 Public` as a web page. Deploy as "Execute as: me" with access "Anyone with the link" at most; never "Anyone, even anonymous."
+**`public.gs`**. Apply `🌎 Public` to publish a thread on your web page; remove it to unpublish. Optional one-time setup: Deploy → New deployment → Web app, "Execute as: Me", "Who has access: Anyone", description `Public`. Open the URL once and it's mailed to you for safekeeping.
 
 ![mail2web](https://github.com/user-attachments/assets/b83c71bb-186f-4964-8fb7-c84c5c66315b)
 

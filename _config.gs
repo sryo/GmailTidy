@@ -38,6 +38,11 @@ const FALLBACK_SENDER_DOMAIN = 'unknown.sender';
 const GMAIL_BATCH_MAX = 100; // GmailApp batch calls (moveThreadsTo*, markThreads*, addToThreads, removeFromThreads) reject more
 const REMOVE_EMPTY_LABELS_BATCH = 50;
 
+const PUBLIC_MAX_THREADS = 100;
+const PUBLIC_CACHE_TTL_SEC = 60;
+const PUBLIC_CACHE_KEY = 'public_threads_html';
+const PUBLIC_URL_SUBJECT = LABEL_PUBLIC + ' page';
+
 const LOG_SUBJECTS_MAX = 3;
 const EXECUTION_TIME_LIMIT_MS = 5 * 60 * 1000;
 
@@ -96,7 +101,8 @@ const TRACKING_HEADERS = ['threadId', 'type', 'timestamp'];
 const PROPS = {
   OFFSET: 'offset',
   TRACKING_SHEET_ID: 'CLASSIFIER_SHEET_ID', // key string predates the rename; kept so existing installs keep their sheet
-  GEMINI_API_KEY: 'GEMINI_API_KEY'
+  GEMINI_API_KEY: 'GEMINI_API_KEY',
+  PUBLIC_URL_SENT: 'PUBLIC_URL_SENT'
 };
 
 const TRIGGER_CLEANUP_MIN = 5;
