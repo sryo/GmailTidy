@@ -92,7 +92,7 @@ function deleteRowsReverse(sheet, rowNumbers) {
 }
 
 // Shared Gemini call. Returns parsed response JSON object, or null on any failure.
-// opts = { temperature = 0, logPrefix = 'gemini' }
+// opts = { temperature = 0, schema, logPrefix = 'gemini' }; schema is a Gemini responseSchema.
 // Retries transient errors (429/5xx + thrown exceptions) with exponential backoff;
 // non-retryable 4xx fails fast.
 function callGemini_(prompt, apiKey, opts) {
@@ -102,7 +102,7 @@ function callGemini_(prompt, apiKey, opts) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
   const payload = {
     contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature, responseMimeType: 'application/json' }
+    generationConfig: { temperature, responseMimeType: 'application/json', responseSchema: opts.schema }
   };
   let lastCode = 0;
   for (let attempt = 1; attempt <= GEMINI_RETRY_MAX_ATTEMPTS; attempt++) {
@@ -233,6 +233,10 @@ function userEmail_() {
 // false-matches lookalike addresses and misses alias sends.
 function isFromMe_(fromHeader) {
   if (!_myAddressesCache) _myAddressesCache = new Set([userEmail_()].concat(GmailApp.getAliases()).map(a => a.toLowerCase()));
-  const m = (fromHeader || '').match(/<([^>]+)>/);
-  return _myAddressesCache.has((m ? m[1] : fromHeader || '').trim().toLowerCase());
+  return _myAddressesCache.has(extractAddress_(fromHeader));
+}
+
+function extractAddress_(header) {
+  const m = (header || '').match(/<([^>]+)>/);
+  return (m ? m[1] : header || '').trim().toLowerCase();
 }

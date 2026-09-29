@@ -22,16 +22,12 @@ function riff() {
       const wasDrafted = !!drafted[threadId];
       const hasDraft = draftedThreadIds.has(threadId);
 
-      // Tracked and the draft is gone: sent (remove 🦾) or discarded (keep 🦾, will redraft).
-      if (wasDrafted && !hasDraft) {
-        const draftedAt = trackingValues[drafted[threadId] - 1][2];
+      // Tracked and the draft is gone: sent (remove 🦾) or discarded (redraft differently below).
+      const redraft = wasDrafted && !hasDraft;
+      if (redraft && wasReplySentAfter_(t, trackingValues[drafted[threadId] - 1][2])) {
         rowsToDelete[drafted[threadId]] = true;
-        if (wasReplySentAfter_(t, draftedAt)) {
-          autoreply.removeFromThreads([t]);
-          console.log('🦾 Riff sent' + subjects_([t]));
-        } else {
-          console.log('🦾 Riff discarded, will redraft' + subjects_([t]));
-        }
+        autoreply.removeFromThreads([t]);
+        console.log('🦾 Riff sent' + subjects_([t]));
         return;
       }
 
@@ -45,8 +41,9 @@ function riff() {
       if (generated >= AUTOREPLY_BATCH_LIMIT) return;
       generated++;
       if (!voiceExamples) voiceExamples = loadVoiceExamples_();
-      const result = generateReplyDraft(t, voiceExamples);
+      const result = generateReplyDraft(t, voiceExamples, redraft);
       if (!result) return; // abstain on API failure, retry next tick
+      if (redraft) rowsToDelete[drafted[threadId]] = true;
       if (!result.draft) {
         console.log('🦾 Riff skipped (' + (result.notes || 'no draft returned') + ')' + subjects_([t]));
         autoreply.removeFromThreads([t]);
@@ -62,7 +59,7 @@ function riff() {
         t.markUnread();
       }
       recordTrackingRows([threadId], TRACKING_TYPE_DRAFTED);
-      console.log('🦾 Riffing reply' + subjects_([t]));
+      console.log('🦾 ' + (redraft ? 'Riff discarded, redrafting' : 'Riffing reply') + subjects_([t]));
     } catch (e) {
       console.error('🦾 Riff failed on ' + t.getId() + ': ' + e.toString());
     }

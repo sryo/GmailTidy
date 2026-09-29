@@ -11,7 +11,7 @@ const ctx = vm.createContext({
   GmailApp: { getAliases: () => ['Alias@Example.org'] },
 });
 const root = path.join(__dirname, '..');
-['_config.gs', '_util.gs', 'burndown.gs', 'bunch.gs', 'public.gs'].forEach(f =>
+['_config.gs', '_util.gs', '_llmReplyDrafter.gs', 'burndown.gs', 'bunch.gs', 'public.gs'].forEach(f =>
   vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f }));
 const run = src => vm.runInContext(src, ctx);
 
@@ -33,6 +33,19 @@ test('isFromMe_ matches the account and aliases exactly', () => {
   assert.ok(isFromMe('alias@example.org'));
   assert.ok(!isFromMe('Other <xme@example.com>'));
   assert.ok(!isFromMe(''));
+});
+
+test('reply prompt carries recipients, prior replies, and the redraft rule', () => {
+  ctx.replyCtx = {
+    userEmail: 'me@example.com', subject: 'S', voiceExamples: [], priorReplies: ['Sounds good, ship it.'], redraft: true,
+    messages: [{ from: 'A <a@x.com>', to: 'me@example.com', cc: 'c@x.com', date: 'd', body: 'b' }],
+  };
+  const prompt = run('buildReplyPrompt_(replyCtx)');
+  assert.ok(prompt.includes('To: me@example.com\nCc: c@x.com'));
+  assert.ok(prompt.includes('Sounds good, ship it.'));
+  assert.ok(prompt.includes('discarded a previous draft'));
+  ctx.replyCtx.redraft = false;
+  assert.ok(!run('buildReplyPrompt_(replyCtx)').includes('discarded a previous draft'));
 });
 
 test('stripQuotedReplyHistory_ drops quoted history', () => {

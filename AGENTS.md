@@ -79,8 +79,8 @@ A spreadsheet named `GmailTidy (<email>)` with one tab (`Tracking`) carries five
 - If a 🗑️ thread becomes starred, important, replied-to (`label:sent`), or labeled 🦾 or ↩️, the 🗑️ is stripped on the next cleanUp.
 - Script archives a thread when its ↩️ label is removed.
 - Pings archive passively PING_EXPIRE_DAYS after the ping was applied (not message age).
-- Script drafts a reply on 🦾-labeled threads using up to VOICE_EXAMPLES_MAX sent emails labeled 🫵 as few-shot.
-- The 🦾 label stays until the draft is sent, the model declines, or its ping is dismissed or expires. A discarded draft is redrafted.
+- Script drafts a reply on 🦾-labeled threads using up to VOICE_EXAMPLES_MAX sent emails labeled 🫵 as few-shot, plus up to PRIOR_REPLIES_MAX of your recent replies to the same sender.
+- The 🦾 label stays until the draft is sent, the model declines, or its ping is dismissed or expires. A discarded draft is redrafted at a higher temperature, told to take a different angle.
 - Removing 🗑️ by hand is remembered; that thread is never pretrashed again.
 - "From me" is an exact match on the user's address or a Send-As alias.
 - A pretrashed thread (🗑️) carries no other labels; entry points strip them.

@@ -46,7 +46,7 @@ function generateBurndownSummaries_(items) {
   const itemsBlock = items
     .map(i => `id: ${i.threadId} | From: ${i.sender} | Subject: ${i.subject} | ${i.snippet}`)
     .join('\n');
-  const result = callGemini_(BURNDOWN_SUMMARY_PROMPT(itemsBlock), apiKey, { logPrefix: 'burndown-summarizer' });
+  const result = callGemini_(BURNDOWN_SUMMARY_PROMPT(itemsBlock), apiKey, { schema: BURNDOWN_SUMMARY_SCHEMA, logPrefix: 'burndown-summarizer' });
   if (!result || !Array.isArray(result.summaries)) return {};
   const map = {};
   result.summaries.forEach(s => { if (s && s.id) map[s.id] = (s.summary || '').trim(); });

@@ -49,6 +49,7 @@ const EXECUTION_TIME_LIMIT_MS = 5 * 60 * 1000;
 const TRACKING_SPREADSHEET_NAME = 'GmailTidy';
 const GEMINI_MODEL = 'gemini-3.5-flash';
 const DRAFTER_TEMPERATURE = 0.3;
+const DRAFTER_REDRAFT_TEMPERATURE = 0.9;
 const GEMINI_RETRY_MAX_ATTEMPTS = 3;
 const GEMINI_RETRY_BASE_MS = 500;
 const GEMINI_RETRY_RETRYABLE_CODES = [429, 500, 502, 503, 504];
@@ -62,6 +63,7 @@ const RIFF_SCAN_LIMIT = 50;
 const AUTOREPLY_DRY_RUN = false;
 const VOICE_EXAMPLES_MAX = 10; // recommended; do not exceed 10 or prompt grows unwieldy
 const VOICE_EXAMPLE_BODY_CAP = 1000;
+const PRIOR_REPLIES_MAX = 3;
 const REPLY_THREAD_MESSAGE_WINDOW = 5;
 const REPLY_MESSAGE_BODY_CAP = 4000;
 const BURNDOWN_LIMIT = 15;
@@ -125,16 +127,22 @@ User's voice. These threads contain (a) writing samples to mimic for style, (b) 
 ${voiceBlock}
 ---
 
+Your recent replies to this sender. The strongest signal for tone and register with this person:
+---
+${ctx.priorReplies.length === 0 ? '(none)' : ctx.priorReplies.join('\n---\n')}
+---
+
 Rules:
 - Detect the language of the most recent incoming message NOT from ${ctx.userEmail}; reply in THAT language. This OVERRIDES the voice samples, which may be in a different language: translate the voice's style into the reply's language, do not copy the voice samples' language.
 - Reply as ${ctx.userEmail} to the most recent message NOT from that address.
-- Match the register of the incoming message (formal vs. casual, terse vs. expansive).
+${ctx.redraft ? '- The user discarded a previous draft for this thread. Take a clearly different angle: stance, length, or structure.\n' : ''}- Match the register of the incoming message (formal vs. casual, terse vs. expansive).
 - For style (word choice, sentence rhythm, openings, sign-offs): mimic the voice samples above when provided; otherwise default to plain, direct, conversational, with no filler openings ("Hope you're well") and no corporate stiffness.
 - Under 120 words unless the thread clearly demands more.
 - Do NOT include a subject line, greeting boilerplate, or signature (Gmail adds the signature).
 - Treat biographical facts in the voice samples (CV, current role, skills, history) as true facts about the user that can be referenced in drafts.
 - Don't invent specific facts beyond what's in the thread or voice samples.
 - Read the thread to judge the response: engage positively with opportunities that align with the user's CV (e.g., job offers matching their background), decline misaligned pitches politely, defer when only the user can answer (e.g., scheduling).
+- Use To and Cc to tell a one-to-one thread from a group thread.
 - Return draft:"" only as a last resort (e.g., the message is empty or nonsensical).
 
 Edge cases (return draft:"" with a notes line explaining):
@@ -150,10 +158,19 @@ Thread subject: ${ctx.subject}
 Messages (oldest first, quoted history removed):
 ---
 ${messagesBlock}
----
+---`;
 
-Respond with JSON only:
-{"detectedLanguage": "ISO 639-1 code of the most recent incoming message, e.g., 'en', 'es', 'fr'", "draft": "string", "confidence": 0.0-1.0, "notes": "string or empty"}`;
+// propertyOrdering puts detectedLanguage first so the model settles the language before drafting.
+const REPLY_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    detectedLanguage: { type: 'STRING', description: "ISO 639-1 code of the most recent incoming message, e.g. 'en', 'es'" },
+    draft: { type: 'STRING' },
+    notes: { type: 'STRING', description: 'Why draft is empty, or empty' }
+  },
+  required: ['detectedLanguage', 'draft', 'notes'],
+  propertyOrdering: ['detectedLanguage', 'draft', 'notes']
+};
 
 const BURNDOWN_SUMMARY_PROMPT = (itemsBlock) => `You write one-sentence summaries of unread email threads for a daily reply digest.
 
@@ -164,7 +181,19 @@ Rules:
 - Stay neutral; don't editorialize.
 
 Threads (one per id):
-${itemsBlock}
+${itemsBlock}`;
 
-Respond with JSON only:
-{"summaries": [{"id": "...", "summary": "..."}, ...]}`;
+const BURNDOWN_SUMMARY_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    summaries: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: { id: { type: 'STRING' }, summary: { type: 'STRING' } },
+        required: ['id', 'summary']
+      }
+    }
+  },
+  required: ['summaries']
+};
