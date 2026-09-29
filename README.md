@@ -9,9 +9,7 @@ Google Apps Script for Gmail inbox zero: auto archive, auto delete old emails, f
 
 **[Set up in 3 steps →](#setup-one-time)** · [How it works](#the-five)
 
-<sub>▶ WATCH</sub> Three days of an inbox, in fifteen seconds.
-
-![Three days of an inbox: promos move to pretrash, read mail is archived after a day, an unanswered thread comes back with a Ping label](assets/hot-meh-ping.gif)
+![Promos move to pretrash as they arrive, read mail is archived after a day, an unanswered thread comes back with a Ping label](assets/hot-meh-ping.gif)
 
 ## The five
 
