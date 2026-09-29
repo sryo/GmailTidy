@@ -6,13 +6,17 @@ Author: Mateo Yadarola (teodalton@gmail.com)
 function cleanUp() {
   safely_('markDoneAsRead',            markDoneAsRead);
   safely_('markPinnedAsImportant',     markPinnedAsImportant);
+  safely_('blockHandTrashedSenders_',  blockHandTrashedSenders_);
   safely_('salvagePretrashOnSignals_', salvagePretrashOnSignals_);
   safely_('deleteOlder',               deleteOlder);
   safely_('preTrashLowPriority',       preTrashLowPriority);
+  safely_('keepNewest_',               keepNewest_);
   safely_('markTrashAsUnimportant',    markTrashAsUnimportant);
+  safely_('dismissMutedPings_',        dismissMutedPings_);
   safely_('archiveDismissedPings_',    archiveDismissedPings_);
   safely_('archiveStalePings_',        archiveStalePings_);
   safely_('ping',                      ping);
+  safely_('nudge',                     nudge);
   safely_('syncManualPings_',          syncManualPings_);
   safely_('stash',                     stash);
   safely_('archiveInbox',              archiveInbox);
@@ -27,13 +31,41 @@ function archiveInbox() {
 
 function ping() {
   const pinged = trackingIndex_(TRACKING_TYPE_PINGED);
-  const threads = GmailApp.search('is:read older_than:' + PING_PICKUP_DAYS + 'd newer_than:' + PING_EXPIRE_DAYS + 'd -label:sent -label:done -label:pinned -label:snoozed -label:"' + LABEL_PING + '" -label:' + LABEL_PRETRASH + ' -label:"' + LABEL_AUTOREPLY + '" -label:"' + LABEL_STASH + '" -label:"' + LABEL_VOICE + '" -in:trash');
+  const threads = GmailApp.search('is:read older_than:' + PING_PICKUP_DAYS + 'd newer_than:' + PING_EXPIRE_DAYS + 'd -label:sent -is:muted -label:done -label:pinned -label:snoozed -label:"' + LABEL_PING + '" -label:' + LABEL_PRETRASH + ' -label:"' + LABEL_AUTOREPLY + '" -label:"' + LABEL_VOICE + '" -in:trash');
   const candidates = threads.filter(t => t.getMessageCount() === 1 && !pinged[t.getId()]);
   if (candidates.length === 0) return;
   console.log('↩️ Pinging ' + candidates.length + ' forgotten reads' + subjects_(candidates));
   const pingLabel = getOrCreateUserLabel(LABEL_PING);
   inChunks_(candidates, c => pingLabel.addToThreads(c));
   applyPingTo_(candidates);
+}
+
+// Your unanswered question comes back as a ping; Riff drafts the follow-up.
+function nudge() {
+  const pinged = trackingIndex_(TRACKING_TYPE_PINGED);
+  const threads = GmailApp.search('label:sent older_than:' + NUDGE_PICKUP_DAYS + 'd newer_than:' + NUDGE_WINDOW_DAYS + 'd -filename:ics -is:muted -label:done -label:pinned -label:snoozed -label:"' + LABEL_PING + '" -label:' + LABEL_PRETRASH + ' -label:"' + LABEL_AUTOREPLY + '" -label:"' + LABEL_VOICE + '" -in:trash');
+  const candidates = threads.filter(t => {
+    if (pinged[t.getId()]) return false;
+    const last = t.getMessages().filter(m => !m.isDraft()).pop();
+    return last && isFromMe_(last.getFrom()) && !isFromMe_(last.getTo())
+      && businessDaysSince_(last.getDate().getTime(), Date.now()) >= NUDGE_PICKUP_DAYS
+      && stripQuotedReplyHistory_(last.getPlainBody() || '').includes('?');
+  });
+  if (candidates.length === 0) return;
+  console.log('↩️ Nudging ' + candidates.length + ' unanswered questions' + subjects_(candidates));
+  const pingLabel = getOrCreateUserLabel(LABEL_PING);
+  inChunks_(candidates, c => pingLabel.addToThreads(c));
+  applyPingTo_(candidates);
+}
+
+// Mute is Gmail's "I'm done with this conversation"; treat it as dismissing the ping.
+function dismissMutedPings_() {
+  const threads = GmailApp.search('is:muted (label:"' + LABEL_PING + '" OR label:"' + LABEL_AUTOREPLY + '")');
+  if (threads.length === 0) return;
+  console.log('🔇 Dismissing ' + threads.length + ' muted pings' + subjects_(threads));
+  removeLabelIfExists_(LABEL_PING, threads);
+  removeLabelIfExists_(LABEL_AUTOREPLY, threads);
+  inChunks_(threads, c => GmailApp.moveThreadsToArchive(c));
 }
 
 function salvagePretrashOnSignals_() {
@@ -115,7 +147,8 @@ function preTrashLowPriority() {
   const query = '-label:' + LABEL_PRETRASH + ' ' + PRETRASH_CATEGORY_QUERY + ' -is:important -label:pinned -label:snoozed -label:done -is:starred -label:sent -label:"' + LABEL_AUTOREPLY + '" -label:"' + LABEL_PING + '" -label:"' + LABEL_VOICE + '"';
   const candidates = GmailApp.search(query).filter(t => !salvaged[t.getId()]);
   const newlySalvaged = candidates.filter(t => pretrashedAt[t.getId()]);
-  const threads = candidates.filter(t => !pretrashedAt[t.getId()]);
+  // Gmail sometimes files real people under updates or promos; anyone you've written to stays.
+  const threads = candidates.filter(t => !pretrashedAt[t.getId()] && !hasWrittenTo_(senderOf_(t)));
 
   if (newlySalvaged.length > 0) {
     console.log('🗑️ Remembering ' + newlySalvaged.length + ' salvaged threads' + subjects_(newlySalvaged));
@@ -123,12 +156,61 @@ function preTrashLowPriority() {
   }
   if (threads.length === 0) return;
   console.log('🗑️ Pretrashing ' + threads.length + ' low-priority threads' + subjects_(threads));
+  pretrash_(threads);
+}
 
+// Unimportant so salvagePretrashOnSignals_ doesn't read Gmail's flag as a KEEP signal.
+function pretrash_(threads) {
   const pretrash = getOrCreateUserLabel(LABEL_PRETRASH);
   inChunks_(threads, c => pretrash.addToThreads(c));
   inChunks_(threads, c => GmailApp.moveThreadsToArchive(c));
+  inChunks_(threads, c => GmailApp.markThreadsUnimportant(c));
   stripAllLabelsExcept(threads, [LABEL_PRETRASH]);
   recordTrackingRows(threads.map(t => t.getId()), TRACKING_TYPE_PRETRASHED);
+}
+
+// Recurring automated mail (same sender, same subject once digits are masked): only the newest stays.
+// Attachments are exempt so statements and invoices are never collapsed.
+function keepNewest_() {
+  const salvaged = trackingTimes_(TRACKING_TYPE_SALVAGED);
+  const threads = GmailApp.search('category:updates -has:attachment -label:' + LABEL_PRETRASH + ' -is:starred -label:pinned -label:snoozed -label:sent -label:"' + LABEL_AUTOREPLY + '" -label:"' + LABEL_PING + '" -label:"' + LABEL_VOICE + '" -label:"' + LABEL_PUBLIC + '" -in:trash', 0, KEEP_NEWEST_SCAN_LIMIT);
+  if (threads.length === 0) return;
+  const seen = new Set();
+  const older = [];
+  GmailApp.getMessagesForThreads(threads).forEach((msgs, i) => {
+    const key = extractAddress_(msgs[0].getFrom()) + '|' + recurringSubjectKey_(threads[i].getFirstMessageSubject());
+    if (seen.has(key)) {
+      if (!salvaged[threads[i].getId()]) older.push(threads[i]);
+    } else {
+      seen.add(key);
+    }
+  });
+  if (older.length === 0) return;
+  console.log('🗑️ Pretrashing ' + older.length + ' superseded copies' + subjects_(older));
+  pretrash_(older);
+}
+
+function recurringSubjectKey_(subject) {
+  return (subject || '').toLowerCase().replace(/\d+/g, '#').replace(/\s+/g, ' ').trim();
+}
+
+// Applying 🗑️ by hand blocks the sender: a Gmail filter (visible in Settings > Filters) sends their
+// future mail to 🗑️. Any 🗑️ thread without a pretrashed row got it by hand or from such a filter.
+function blockHandTrashedSenders_() {
+  const pretrashedAt = trackingTimes_(TRACKING_TYPE_PRETRASHED);
+  const threads = GmailApp.search('label:' + LABEL_PRETRASH + ' -in:trash').filter(t => !pretrashedAt[t.getId()]);
+  if (threads.length === 0) return;
+  const filtered = new Set((Gmail.Users.Settings.Filters.list('me').filter || [])
+    .map(f => ((f.criteria && f.criteria.from) || '').toLowerCase()));
+  const senders = new Set(threads.map(senderOf_).filter(a => a && !filtered.has(a)));
+  if (senders.size > 0) {
+    const labelId = Gmail.Users.Labels.list('me').labels.find(l => l.name === LABEL_PRETRASH).id;
+    senders.forEach(from => {
+      Gmail.Users.Settings.Filters.create({ criteria: { from }, action: { addLabelIds: [labelId], removeLabelIds: ['INBOX', 'IMPORTANT'] } }, 'me');
+      console.log('🚫 Blocking ' + from);
+    });
+  }
+  pretrash_(threads);
 }
 
 function deleteOlder() {

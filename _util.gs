@@ -236,7 +236,36 @@ function isFromMe_(fromHeader) {
   return _myAddressesCache.has(extractAddress_(fromHeader));
 }
 
+// Address of the first message not sent by you, or '' when you started and only you wrote.
+function senderOf_(thread) {
+  const m = thread.getMessages().find(m => !isFromMe_(m.getFrom()));
+  return m ? extractAddress_(m.getFrom()) : '';
+}
+
+// True when you've ever sent mail to this address. Cached so a kept sender costs one search per TTL.
+function hasWrittenTo_(address) {
+  if (!address) return false;
+  const cache = CacheService.getScriptCache();
+  const key = KNOWN_SENDER_CACHE_PREFIX + address;
+  const hit = cache.get(key);
+  if (hit !== null) return hit === '1';
+  const known = GmailApp.search('label:sent to:' + address, 0, 1).length > 0;
+  cache.put(key, known ? '1' : '0', KNOWN_SENDER_CACHE_TTL_SEC);
+  return known;
+}
+
+// Whole weekdays elapsed since sinceMs, so a Friday message isn't nudged on Monday.
+function businessDaysSince_(sinceMs, nowMs) {
+  let days = 0;
+  for (let t = sinceMs + MS_PER_DAY; t <= nowMs; t += MS_PER_DAY) {
+    const day = new Date(t).getDay();
+    if (day !== 0 && day !== 6) days++;
+  }
+  return days;
+}
+
+// First address in a From/To header, with or without a display name.
 function extractAddress_(header) {
-  const m = (header || '').match(/<([^>]+)>/);
-  return (m ? m[1] : header || '').trim().toLowerCase();
+  const m = (header || '').match(/[^\s<>,"']+@[^\s<>,"']+/);
+  return m ? m[0].toLowerCase() : '';
 }

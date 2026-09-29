@@ -13,7 +13,7 @@ function sendBurndown() {
   const draftMap = buildDraftMapForThreads_();
   const items = threads.map(t => buildBurndownItem_(t, draftMap));
   const summaries = generateBurndownSummaries_(items);
-  items.forEach(i => { i.summary = summaries[i.threadId] || ''; });
+  items.forEach(i => Object.assign(i, { summary: '', due: '' }, summaries[i.threadId]));
   const subject = BURNDOWN_SUBJECT_PREFIX + ' ' + formatBurndownDate_();
   const { plainBody, htmlBody } = composeBurndownBody_(items);
   GmailApp.sendEmail(userEmail, subject, plainBody, { htmlBody, name: BURNDOWN_SUBJECT_PREFIX });
@@ -33,6 +33,7 @@ function buildBurndownItem_(thread, draftMap) {
     sender: latest.getFrom(),
     subject: thread.getFirstMessageSubject() || '(no subject)',
     snippet: (latest.getPlainBody() || '').replace(/\s+/g, ' ').trim().substring(0, BURNDOWN_SNIPPET_CAP),
+    excerpt: stripQuotedReplyHistory_(latest.getPlainBody() || '').replace(/\s+/g, ' ').trim().substring(0, BURNDOWN_EXCERPT_CAP),
     riffDraft: riffBody
   };
 }
@@ -44,20 +45,31 @@ function generateBurndownSummaries_(items) {
     return {};
   }
   const itemsBlock = items
-    .map(i => `id: ${i.threadId} | From: ${i.sender} | Subject: ${i.subject} | ${i.snippet}`)
+    .map(i => `id: ${i.threadId} | From: ${i.sender} | Subject: ${i.subject} | ${i.excerpt}`)
     .join('\n');
-  const result = callGemini_(BURNDOWN_SUMMARY_PROMPT(itemsBlock), apiKey, { schema: BURNDOWN_SUMMARY_SCHEMA, logPrefix: 'burndown-summarizer' });
+  const result = callGemini_(BURNDOWN_SUMMARY_PROMPT(itemsBlock, formatBurndownDate_()), apiKey, { schema: BURNDOWN_SUMMARY_SCHEMA, logPrefix: 'burndown-summarizer' });
   if (!result || !Array.isArray(result.summaries)) return {};
   const map = {};
-  result.summaries.forEach(s => { if (s && s.id) map[s.id] = (s.summary || '').trim(); });
+  result.summaries.forEach(s => {
+    if (s && s.id) map[s.id] = { summary: (s.summary || '').trim(), due: /^\d{4}-\d{2}-\d{2}$/.test(s.due) ? s.due : '' };
+  });
   return map;
 }
 
 function composeBurndownBody_(items) {
   const intro = items.length + ' threads waiting. Reply to this email, expand quoted content, and edit the right-column cells. Leave a Riff suggestion alone to accept it; clear a cell to skip.';
-  const plainBody = intro + '\n\n' + items.map(composeBurndownPlainRow_).join('\n\n');
-  const htmlBody = composeBurndownHtml_(intro, items);
+  const due = dueLines_(items);
+  const duePlain = due.length ? BURNDOWN_DUE_HEADER + ':\n' + due.map(l => '- ' + l).join('\n') + '\n\n' : '';
+  const dueHtml = due.length ? `<p style="margin:0 0 4px 0;font-weight:600;">${escapeHtml(BURNDOWN_DUE_HEADER)}</p><ul style="margin:0 0 12px 0;">${due.map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ul>` : '';
+  const plainBody = intro + '\n\n' + duePlain + items.map(composeBurndownPlainRow_).join('\n\n');
+  const htmlBody = composeBurndownHtml_(intro, items, dueHtml);
   return { plainBody, htmlBody };
+}
+
+function dueLines_(items) {
+  return items.filter(i => i.due)
+    .sort((a, b) => a.due.localeCompare(b.due))
+    .map(i => i.due + ': ' + (i.summary || i.subject));
 }
 
 function composeBurndownPlainRow_(item) {
@@ -71,7 +83,7 @@ function composeBurndownPlainRow_(item) {
   ].join('\n');
 }
 
-function composeBurndownHtml_(intro, items) {
+function composeBurndownHtml_(intro, items, dueHtml) {
   const rows = items.map(i => `<tr>
   <td style="vertical-align:top;padding:12px;border-bottom:1px solid #eee;width:50%;">
     <div style="font-size:11px;color:#999;font-family:monospace;">${escapeHtml(BURNDOWN_MARKER_PREFIX + i.threadId)}</div>
@@ -86,6 +98,7 @@ function composeBurndownHtml_(intro, items) {
 </tr>`).join('\n');
   return `<div style="font-family:sans-serif;">
   <p style="margin:0 0 12px 0;">${escapeHtml(intro)}</p>
+  ${dueHtml || ''}
   <table style="border-collapse:collapse;width:100%;max-width:760px;">
     <thead><tr>
       <th style="text-align:left;padding:8px;border-bottom:2px solid #333;width:50%;">${escapeHtml(BURNDOWN_TABLE_HEADER_LEFT)}</th>

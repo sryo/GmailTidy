@@ -14,8 +14,8 @@ Google Apps Script for Gmail inbox zero: auto archive, auto delete old emails, f
 ## The five
 
 1. **Hot: auto archive.** Read mail older than a day leaves the inbox, unless it's pinned, snoozed or waiting on a reply. Mark a sender important once and their mail keeps landing here.
-2. **Meh: auto delete old emails.** Newsletters and low-priority mail skip the inbox and wait in 🗑️. Star, reply or mark important to keep a thread. After 20 days the rest moves to Trash.
-3. **Ping: follow-up reminder.** A message you haven't answered in 2 to 4 days comes back with `↩️ Ping` and a draft reply. Remove the label to dismiss it. Once per thread.
+2. **Meh: auto delete old emails.** Newsletters and low-priority mail skip the inbox and wait in 🗑️. Star, reply or mark important to keep a thread. Mail from people you've written to is never touched, and recurring notifications keep only their newest copy. Label a thread 🗑️ yourself to block its sender. After 20 days the rest moves to Trash.
+3. **Ping: follow-up reminder.** A message you haven't answered in 2 to 4 days comes back with `↩️ Ping` and a draft reply. So does a question you sent that got no answer in 3 weekdays. Remove the label or mute the thread to dismiss it. Once per thread.
 4. **Bunch: a label per sender.** Important threads get a label for the sender's domain, so every conversation with a company sits in one place.
 5. **Stash: find attachments.** Important threads with attachments get `🪎 Stash`.
 
@@ -23,7 +23,7 @@ Google Apps Script for Gmail inbox zero: auto archive, auto delete old emails, f
 
 **Riff: draft a reply.** Label a thread `🦾 Riff` and a reply in your voice is waiting in it, ready to send. Pinged threads get one automatically. Your voice comes from sent mail labeled `🫵 Voice`.
 
-**Burndown: one mail a day.** Unanswered mail piles up because each thread is its own chore. Burndown gathers the important ones from the past week into one mail, each with a suggested reply. Reply once to the digest and each thread gets its own draft.
+**Burndown: one mail a day.** Unanswered mail piles up because each thread is its own chore. Burndown gathers the important ones from the past week, plus your pings, into one mail, each with a suggested reply, and a list of what's due. Reply once to the digest and each thread gets its own draft.
 
 ![Replying once to the Burndown digest: keep one suggestion, rewrite another, clear a third, and drafts appear on the two threads](assets/burndown.gif)
 

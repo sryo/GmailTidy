@@ -39,7 +39,7 @@ self-running system, not an admin task.
 - `sendBurndown`: daily at `BURNDOWN_HOUR`.
 - `dailyMaintenance`: daily at `TRIGGER_DAILY_MAINTENANCE_HOUR`. Tracking retention.
 
-Routines inside `cleanUp`, in order: `markDoneAsRead`, `markPinnedAsImportant`, `salvagePretrashOnSignals_`, `deleteOlder`, `preTrashLowPriority`, `markTrashAsUnimportant`, `archiveDismissedPings_`, `archiveStalePings_`, `ping`, `syncManualPings_`, `stash`, `archiveInbox`.
+Routines inside `cleanUp`, in order: `markDoneAsRead`, `markPinnedAsImportant`, `blockHandTrashedSenders_`, `salvagePretrashOnSignals_`, `deleteOlder`, `preTrashLowPriority`, `keepNewest_`, `markTrashAsUnimportant`, `dismissMutedPings_`, `archiveDismissedPings_`, `archiveStalePings_`, `ping`, `nudge`, `syncManualPings_`, `stash`, `archiveInbox`.
 
 Routines inside `cleanUpDeep`: `riff`, `processBurndownReplies_`.
 
@@ -54,11 +54,13 @@ The user expresses intent through Gmail's importance flag and the script-managed
 labels. Manual gestures the system reads as signal:
 - Mark **important** = "I want to see this."
 - Mark **unimportant** = "I don't care."
+- Apply **🗑️** by hand = block the sender: a Gmail filter sends their future mail to 🗑️. Delete the filter in Gmail Settings to unblock.
 - Remove **🗑️** = salvage; the thread should be kept.
 - Star / apply **pinned** / **snoozed** = explicit positive.
 - Apply **↩️** = reply later; thread returns to Hot and is tracked like an auto-ping.
 - Remove **↩️** = dismiss a ping; the thread should be archived.
-- Apply **🦾** = draft me a reply via LLM. Stays on the thread until the draft is sent or deleted.
+- **Mute** = dismiss: a muted thread loses ↩️ and 🦾 and is never auto-pinged.
+- Apply **🦾** = draft me a reply via LLM. If you sent last, the draft is a follow-up. Stays on the thread until the draft is sent or deleted.
 - Apply **🌎** = publish this thread on the web page served by `doGet`. Remove it to unpublish.
 - Apply **🫵** = voice corpus *and* hands-off marker: thread is excluded from auto-ping and auto-pretrash. The drafter still pulls 🫵-labeled sent emails as voice examples.
 
@@ -68,23 +70,26 @@ One-time setup: label a handful of your sent emails with **🫵** so the drafter
 A spreadsheet named `GmailTidy (<email>)` with one tab (`Tracking`) carries five orthogonal markers: pinged, drafted, burndown_processed (msgId-keyed dedup for the burndown reply parser), pretrashed, salvaged. Each expires per `TRACKING_TTL_DAYS_BY_TYPE`; salvaged never does. That's the only state the script persists outside Gmail itself.
 
 ## Contracts
-- Gmail's `is:important` flag is the source of truth. The script flips it only to keep pinned/snoozed important and trashed unimportant.
-- Pretrash is category-based (`low_priority` OR `promos` OR `category:updates`), not generic `is:unimportant`.
+- Gmail's `is:important` flag is the source of truth. The script flips it only to keep pinned/snoozed important and trashed or pretrashed unimportant.
+- Pretrash is category-based (`low_priority` OR `promos` OR `category:updates`), not generic `is:unimportant`. Mail from anyone you've written to (`label:sent to:`) is never auto-pretrashed.
+- Recurring automated mail in `category:updates` without attachments (same sender, same subject with digits masked) keeps only its newest copy; older ones are pretrashed.
+- A 🗑️ thread without a pretrashed row got it by hand or from a block filter; its sender gets a Gmail filter (add 🗑️, skip inbox, never important) once.
 - Pinned threads are always promoted to important.
 - Stash requires `is:important has:attachment`.
 - Bunch only labels importants from the last `BUNCH_WINDOW_DAYS`, never by the user's own address.
 - Ping is one-shot per thread: the ping window closes before its tracking row expires.
 - Manually applied ↩️ is treated like an auto-ping (moved to inbox, tracked).
+- Nudge pings a thread once when your last message, sent to someone else, has a `?`, carries no calendar invite, and got no answer for NUDGE_PICKUP_DAYS weekdays. It shares the pinged row, so its window closes before that row expires.
 - If ↩️ is applied to a pretrashed thread (🗑️), the 🗑️ is stripped (salvage override).
 - If a 🗑️ thread becomes starred, important, replied-to (`label:sent`), or labeled 🦾 or ↩️, the 🗑️ is stripped on the next cleanUp.
 - Script archives a thread when its ↩️ label is removed.
 - Pings archive passively PING_EXPIRE_DAYS after the ping was applied (not message age).
-- Script drafts a reply on 🦾-labeled threads using up to VOICE_EXAMPLES_MAX sent emails labeled 🫵 as few-shot, plus up to PRIOR_REPLIES_MAX of your recent replies to the same sender.
+- Script drafts a reply on 🦾-labeled threads using up to VOICE_EXAMPLES_MAX sent emails labeled 🫵 as few-shot, plus up to PRIOR_REPLIES_MAX of your recent replies to the same sender, and your calendar's busy times for CALENDAR_LOOKAHEAD_DAYS so scheduling replies propose real slots.
 - The 🦾 label stays until the draft is sent, the model declines, or its ping is dismissed or expires. A discarded draft is redrafted at a higher temperature, told to take a different angle.
 - Removing 🗑️ by hand is remembered; that thread is never pretrashed again.
 - "From me" is an exact match on the user's address or a Send-As alias.
 - A pretrashed thread (🗑️) carries no other labels; entry points strip them.
-- Burndown sends one self-mail digest per day listing important unread unreplied threads with Riff drafts as suggestions; the user's reply to that digest is parsed into per-thread drafts (or sends, if `BURNDOWN_AUTOSEND`).
+- Burndown sends one self-mail digest per day listing important unread unreplied threads plus every ↩️ thread in the inbox, with Riff drafts as suggestions and a date-sorted Due list pulled from the threads; the user's reply to that digest is parsed into per-thread drafts (or sends, if `BURNDOWN_AUTOSEND`).
 - Each user reply to a burndown is processed at most once, keyed by message ID via `TRACKING_TYPE_BURNDOWN_PROCESSED`.
 - The 🌎 page renders live from Gmail and shows only 🌎-labeled threads, with scripts and remote images stripped. The web app deploys as "Execute as: Me", "Who has access: Anyone", described `Public`.
 - The 🌎 page URL is mailed to the user once, on the first request to that URL.

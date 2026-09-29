@@ -30,9 +30,33 @@ function buildReplyContext_(thread, voiceExamples, redraft) {
     date: m.getDate().toISOString(),
     body: stripQuotedReplyHistory_(m.getPlainBody() || '').substring(0, REPLY_MESSAGE_BODY_CAP)
   }));
+  // Nudge: the user sent last, so Riff writes a follow-up to the person they're waiting on.
+  const last = all.filter(m => !m.isDraft()).pop();
+  const nudge = !!last && isFromMe_(last.getFrom());
   const incoming = all.slice().reverse().find(m => !isFromMe_(m.getFrom()));
-  const priorReplies = incoming ? loadPriorReplies_(extractAddress_(incoming.getFrom()), thread.getId()) : [];
-  return { userEmail: userEmail_(), subject, messages, voiceExamples: voiceExamples || [], priorReplies, redraft: !!redraft };
+  const other = nudge ? last.getTo() : incoming && incoming.getFrom();
+  const priorReplies = loadPriorReplies_(extractAddress_(other), thread.getId());
+  const now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'EEE yyyy-MM-dd HH:mm z');
+  return { userEmail: userEmail_(), subject, messages, voiceExamples: voiceExamples || [], priorReplies, redraft: !!redraft, nudge, now, busy: busyTimes_() };
+}
+
+let _busyTimesCache = null;
+
+function busyTimes_() {
+  if (_busyTimesCache !== null) return _busyTimesCache;
+  try {
+    const tz = Session.getScriptTimeZone();
+    const start = new Date();
+    const end = new Date(start.getTime() + CALENDAR_LOOKAHEAD_DAYS * MS_PER_DAY);
+    const busy = CalendarApp.getDefaultCalendar().getEvents(start, end)
+      .filter(e => !e.isAllDayEvent() && e.getMyStatus() !== CalendarApp.GuestStatus.NO)
+      .map(e => Utilities.formatDate(e.getStartTime(), tz, 'EEE yyyy-MM-dd HH:mm') + ' to ' + Utilities.formatDate(e.getEndTime(), tz, 'HH:mm'));
+    _busyTimesCache = busy.join('\n') || '(nothing booked)';
+  } catch (e) {
+    console.warn('🦾 Riff: calendar unavailable: ' + e.toString());
+    _busyTimesCache = '(calendar unavailable)';
+  }
+  return _busyTimesCache;
 }
 
 function loadPriorReplies_(address, excludeThreadId) {

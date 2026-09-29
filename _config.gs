@@ -58,6 +58,14 @@ const PRETRASH_AGE_DAYS = 20;
 const ARCHIVE_INBOX_AGE_DAYS = 1;
 const PING_PICKUP_DAYS = 2;
 const PING_EXPIRE_DAYS = 4;
+// Nudge rides the pinged row, so its window must close before that row expires (pickup + row TTL > window).
+const NUDGE_PICKUP_DAYS = 3;
+const NUDGE_WINDOW_DAYS = 7;
+const KEEP_NEWEST_SCAN_LIMIT = 200;
+const KNOWN_SENDER_CACHE_PREFIX = 'known_sender:';
+const KNOWN_SENDER_CACHE_TTL_SEC = 6 * 3600; // CacheService max
+const CALENDAR_LOOKAHEAD_DAYS = 7;
+const CALENDAR_WORK_HOURS = 'weekdays 09:00 to 18:00';
 const AUTOREPLY_BATCH_LIMIT = 5;
 const RIFF_SCAN_LIMIT = 50;
 const AUTOREPLY_DRY_RUN = false;
@@ -71,12 +79,14 @@ const BURNDOWN_WINDOW_DAYS = 7;
 const BURNDOWN_AUTOSEND = false;
 const BURNDOWN_HOUR = 8;
 const BURNDOWN_SNIPPET_CAP = 240;
+const BURNDOWN_EXCERPT_CAP = 1200; // what the summarizer reads; longer than the snippet so dates aren't cut off
+const BURNDOWN_DUE_HEADER = 'Due';
 const BURNDOWN_SUBJECT_PREFIX = 'Burndown';
 const BURNDOWN_MARKER_PREFIX = '━ thread ';
 const BURNDOWN_TABLE_HEADER_LEFT = 'Mail';
 const BURNDOWN_TABLE_HEADER_RIGHT = 'Your reply';
 const BURNDOWN_REPLY_PROMPT = 'Your reply:';
-const BURNDOWN_QUERY = 'is:important is:unread in:inbox -label:sent -label:' + LABEL_PRETRASH + ' -label:"' + LABEL_PUBLIC + '" newer_than:' + BURNDOWN_WINDOW_DAYS + 'd';
+const BURNDOWN_QUERY = 'in:inbox -label:' + LABEL_PRETRASH + ' -label:"' + LABEL_PUBLIC + '" (label:"' + LABEL_PING + '" OR (is:important is:unread -label:sent newer_than:' + BURNDOWN_WINDOW_DAYS + 'd))';
 const BURNDOWN_PROCESSED_TTL_DAYS = 14;
 
 const TRACKING_TYPE_PINGED = 'pinged';
@@ -132,9 +142,17 @@ Your recent replies to this sender. The strongest signal for tone and register w
 ${ctx.priorReplies.length === 0 ? '(none)' : ctx.priorReplies.join('\n---\n')}
 ---
 
+Now: ${ctx.now}. Your busy times for the next ${CALENDAR_LOOKAHEAD_DAYS} days:
+---
+${ctx.busy}
+---
+
 Rules:
-- Detect the language of the most recent incoming message NOT from ${ctx.userEmail}; reply in THAT language. This OVERRIDES the voice samples, which may be in a different language: translate the voice's style into the reply's language, do not copy the voice samples' language.
-- Reply as ${ctx.userEmail} to the most recent message NOT from that address.
+${ctx.nudge ? `- ${ctx.userEmail} sent the most recent message and got no answer. Write a brief follow-up as ${ctx.userEmail} that restates the open ask. No guilt-tripping, no "just checking in" filler.
+- Write in the language of ${ctx.userEmail}'s most recent message.
+- Return draft:"" if that message asked for nothing (FYI, thanks, closing).` : `- Detect the language of the most recent incoming message NOT from ${ctx.userEmail}; reply in THAT language.
+- Reply as ${ctx.userEmail} to the most recent message NOT from that address.`}
+- The reply's language OVERRIDES the voice samples, which may be in a different language: translate the voice's style into the reply's language, do not copy the voice samples' language.
 ${ctx.redraft ? '- The user discarded a previous draft for this thread. Take a clearly different angle: stance, length, or structure.\n' : ''}- Match the register of the incoming message (formal vs. casual, terse vs. expansive).
 - For style (word choice, sentence rhythm, openings, sign-offs): mimic the voice samples above when provided; otherwise default to plain, direct, conversational, with no filler openings ("Hope you're well") and no corporate stiffness.
 - Under 120 words unless the thread clearly demands more.
@@ -143,12 +161,13 @@ ${ctx.redraft ? '- The user discarded a previous draft for this thread. Take a c
 - Don't invent specific facts beyond what's in the thread or voice samples.
 - Read the thread to judge the response: engage positively with opportunities that align with the user's CV (e.g., job offers matching their background), decline misaligned pitches politely, defer when only the user can answer (e.g., scheduling).
 - Use To and Cc to tell a one-to-one thread from a group thread.
+- If the thread asks to meet or for availability, propose 2 or 3 concrete slots within ${CALENDAR_WORK_HOURS} that avoid the busy times. Otherwise ignore the calendar.
 - Return draft:"" only as a last resort (e.g., the message is empty or nonsensical).
 
 Edge cases (return draft:"" with a notes line explaining):
-- Thread has no message from anyone other than ${ctx.userEmail}.
+${ctx.nudge ? '' : `- Thread has no message from anyone other than ${ctx.userEmail}.
 - The most recent message is already from ${ctx.userEmail} (user already replied).
-- Transactional: booking/flight/ticket confirmation, order receipt, shipment update, OTP, password reset, policy or document delivery, medical or appointment confirmation.
+`}- Transactional: booking/flight/ticket confirmation, order receipt, shipment update, OTP, password reset, policy or document delivery, medical or appointment confirmation.
 - Marketing or one-way announcement: newsletter, product launch, promo, subscription welcome, "your X is ready" notifications.
 - Closing acknowledgment: the most recent incoming message is a brief thanks with no question or request, after the user already replied.
 - Out-of-office or vacation auto-responder.
@@ -164,7 +183,7 @@ ${messagesBlock}
 const REPLY_RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
-    detectedLanguage: { type: 'STRING', description: "ISO 639-1 code of the most recent incoming message, e.g. 'en', 'es'" },
+    detectedLanguage: { type: 'STRING', description: "ISO 639-1 code of the language the draft must be in, e.g. 'en', 'es'" },
     draft: { type: 'STRING' },
     notes: { type: 'STRING', description: 'Why draft is empty, or empty' }
   },
@@ -172,13 +191,14 @@ const REPLY_RESPONSE_SCHEMA = {
   propertyOrdering: ['detectedLanguage', 'draft', 'notes']
 };
 
-const BURNDOWN_SUMMARY_PROMPT = (itemsBlock) => `You write one-sentence summaries of unread email threads for a daily reply digest.
+const BURNDOWN_SUMMARY_PROMPT = (itemsBlock, today) => `You write one-sentence summaries of unread email threads for a daily reply digest. Today is ${today}.
 
 Rules:
 - One sentence per thread, under 20 words.
 - Lead with the ask or the fact, not "the sender". Skip "this email is about".
 - Reply in the language of the thread (detect from subject + snippet).
 - Stay neutral; don't editorialize.
+- due: the date of a deadline, payment, appointment, or RSVP the thread asks of the reader, as YYYY-MM-DD. Empty when there is none.
 
 Threads (one per id):
 ${itemsBlock}`;
@@ -190,8 +210,8 @@ const BURNDOWN_SUMMARY_SCHEMA = {
       type: 'ARRAY',
       items: {
         type: 'OBJECT',
-        properties: { id: { type: 'STRING' }, summary: { type: 'STRING' } },
-        required: ['id', 'summary']
+        properties: { id: { type: 'STRING' }, summary: { type: 'STRING' }, due: { type: 'STRING' } },
+        required: ['id', 'summary', 'due']
       }
     }
   },
