@@ -33,8 +33,6 @@ If this approach resonates, check out [Posta](https://sryo.github.io/Posta/), my
 
 **`public.gs`**. Apply `🌎 Public` to publish a thread on your web page; remove it to unpublish. Optional one-time setup: Deploy → New deployment → Web app, "Execute as: Me", "Who has access: Anyone", description `Public`. Open the URL once and it's mailed to you for safekeeping.
 
-![mail2web](https://github.com/user-attachments/assets/b83c71bb-186f-4964-8fb7-c84c5c66315b)
-
 **`riff.gs`**. Apply `🦾` to any thread to add some AI muscle. Riff uses recent sent emails labeled `🫵` to match your voice.
 
 **`bunch.gs`**. Groups important untagged threads under per-domain labels.
