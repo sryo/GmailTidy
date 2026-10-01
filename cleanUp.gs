@@ -145,9 +145,10 @@ function preTrashLowPriority() {
   // remember it so it's never pretrashed again.
   const pretrashedAt = trackingTimes_(TRACKING_TYPE_PRETRASHED);
   const salvaged = trackingTimes_(TRACKING_TYPE_SALVAGED);
-  const query = '-label:' + LABEL_PRETRASH + ' ' + PRETRASH_CATEGORY_QUERY + ' -is:important -label:pinned -label:snoozed -label:done -is:starred -label:sent -label:"' + LABEL_AUTOREPLY + '" -label:"' + LABEL_PING + '" -label:"' + LABEL_VOICE + '"';
+  // Inbox only: GmailApp.search returns at most 500 threads, so a mailbox-wide scan misses older ones.
+  const query = 'in:inbox -label:' + LABEL_PRETRASH + ' -is:important -label:pinned -label:snoozed -label:done -is:starred -label:sent -label:"' + LABEL_AUTOREPLY + '" -label:"' + LABEL_PING + '" -label:"' + LABEL_VOICE + '"';
   const candidates = GmailApp.search(query).filter(t => !salvaged[t.getId()]);
-  // Gmail sometimes files real people under updates or promos; anyone you've written to stays,
+  // Gmail sometimes marks real people unimportant; anyone you've written to stays,
   // remembered as salvaged so the thread isn't re-read every run.
   const fresh = candidates.filter(t => !pretrashedAt[t.getId()]);
   const kept = fresh.filter(t => hasWrittenTo_(senderOf_(t)));

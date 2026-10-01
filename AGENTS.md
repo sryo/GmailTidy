@@ -71,7 +71,7 @@ A spreadsheet named `GmailTidy (<email>)` with one tab (`Tracking`) carries five
 
 ## Contracts
 - Gmail's `is:important` flag is the source of truth. The script flips it only to keep pinned/snoozed important and trashed or pretrashed unimportant.
-- Pretrash is category-based (`low_priority` OR `promos` OR `category:updates`), not generic `is:unimportant`. Mail from anyone you've written to (`label:sent to:`) is never auto-pretrashed.
+- Pretrash takes any inbox thread not marked important. Mail from anyone you've written to (`label:sent to:`) is never auto-pretrashed.
 - Recurring automated mail in `category:updates` without attachments (same sender, same subject with digits masked) keeps only its newest copy; older ones are pretrashed.
 - A 🗑️ thread without a pretrashed row got it by hand or from a block filter; its sender gets a Gmail filter (add 🗑️, skip inbox, never important) once.
 - Pinned threads are always promoted to important.
