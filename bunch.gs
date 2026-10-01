@@ -97,8 +97,9 @@ function extractDomain_(sender) {
 }
 
 // Sweeps user labels in pages of REMOVE_EMPTY_LABELS_BATCH; resumes via PROPS.OFFSET across runs.
+// Advanced Gmail API, not GmailApp: a per-label read every run would drain GmailApp's daily quota.
 function removeEmptyLabels() {
-  const labels = GmailApp.getUserLabels();
+  const labels = Gmail.Users.Labels.list('me').labels.filter(l => l.type === 'user' && !PROTECTED_LABELS.includes(l.name));
   const limit = REMOVE_EMPTY_LABELS_BATCH;
   const userProperties = PropertiesService.getUserProperties();
   let offset = parseInt(userProperties.getProperty(PROPS.OFFSET), 10);
@@ -112,11 +113,10 @@ function removeEmptyLabels() {
 
   let i;
   for (i = offset; i < offset + limit && i < labels.length; i++) {
-    const name = labels[i].getName();
-    if (PROTECTED_LABELS.includes(name)) continue;
-    if (labels[i].getThreads(0, 1).length === 0) {
-      labels[i].deleteLabel();
-      console.log('🏷️ Deleted empty label: ' + name);
+    // The API omits threadsTotal when it is zero.
+    if (!Gmail.Users.Labels.get('me', labels[i].id).threadsTotal) {
+      Gmail.Users.Labels.remove('me', labels[i].id);
+      console.log('🏷️ Deleted empty label: ' + labels[i].name);
     }
   }
   userProperties.setProperty(PROPS.OFFSET, i);

@@ -44,9 +44,10 @@ function ping() {
 function nudge() {
   const pinged = trackingIndex_(TRACKING_TYPE_PINGED);
   const threads = GmailApp.search('label:sent older_than:' + NUDGE_PICKUP_DAYS + 'd newer_than:' + NUDGE_WINDOW_DAYS + 'd -filename:ics -is:muted -label:done -label:pinned -label:snoozed -label:"' + LABEL_PING + '" -label:' + LABEL_PRETRASH + ' -label:"' + LABEL_AUTOREPLY + '" -label:"' + LABEL_VOICE + '" -in:trash');
-  const candidates = threads.filter(t => {
-    if (pinged[t.getId()]) return false;
-    const last = t.getMessages().filter(m => !m.isDraft()).pop();
+  const unpinged = threads.filter(t => !pinged[t.getId()]);
+  const messagesByThread = GmailApp.getMessagesForThreads(unpinged);
+  const candidates = unpinged.filter((t, i) => {
+    const last = messagesByThread[i].filter(m => !m.isDraft()).pop();
     return last && isFromMe_(last.getFrom()) && !isFromMe_(last.getTo())
       && businessDaysSince_(last.getDate().getTime(), Date.now()) >= NUDGE_PICKUP_DAYS
       && stripQuotedReplyHistory_(last.getPlainBody() || '').includes('?');
@@ -146,9 +147,12 @@ function preTrashLowPriority() {
   const salvaged = trackingTimes_(TRACKING_TYPE_SALVAGED);
   const query = '-label:' + LABEL_PRETRASH + ' ' + PRETRASH_CATEGORY_QUERY + ' -is:important -label:pinned -label:snoozed -label:done -is:starred -label:sent -label:"' + LABEL_AUTOREPLY + '" -label:"' + LABEL_PING + '" -label:"' + LABEL_VOICE + '"';
   const candidates = GmailApp.search(query).filter(t => !salvaged[t.getId()]);
-  const newlySalvaged = candidates.filter(t => pretrashedAt[t.getId()]);
-  // Gmail sometimes files real people under updates or promos; anyone you've written to stays.
-  const threads = candidates.filter(t => !pretrashedAt[t.getId()] && !hasWrittenTo_(senderOf_(t)));
+  // Gmail sometimes files real people under updates or promos; anyone you've written to stays,
+  // remembered as salvaged so the thread isn't re-read every run.
+  const fresh = candidates.filter(t => !pretrashedAt[t.getId()]);
+  const kept = fresh.filter(t => hasWrittenTo_(senderOf_(t)));
+  const newlySalvaged = candidates.filter(t => pretrashedAt[t.getId()]).concat(kept);
+  const threads = fresh.filter(t => !kept.includes(t));
 
   if (newlySalvaged.length > 0) {
     console.log('🗑️ Remembering ' + newlySalvaged.length + ' salvaged threads' + subjects_(newlySalvaged));
@@ -178,7 +182,7 @@ function keepNewest_() {
   const seen = new Set();
   const older = [];
   GmailApp.getMessagesForThreads(threads).forEach((msgs, i) => {
-    const key = extractAddress_(msgs[0].getFrom()) + '|' + recurringSubjectKey_(threads[i].getFirstMessageSubject());
+    const key = extractAddress_(msgs[0].getFrom()) + '|' + recurringSubjectKey_(msgs[0].getSubject());
     if (seen.has(key)) {
       if (!salvaged[threads[i].getId()]) older.push(threads[i]);
     } else {
