@@ -78,7 +78,7 @@ function ensureMenuTrigger_() {
 }
 
 function ensureLabels_() {
-  PROTECTED_LABELS.forEach(name => getOrCreateUserLabel(name));
+  PROTECTED_LABELS.forEach(labelId_);
   Logger.log('✓ labels available: ' + PROTECTED_LABELS.join(' '));
 }
 

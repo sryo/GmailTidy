@@ -35,7 +35,8 @@ const BUNCH_WINDOW_DAYS = 2;
 // bounce addresses) and produced wrong domain labels when From was missing.
 const SENDER_HEADER_FALLBACKS = ['From', 'Sender'];
 const FALLBACK_SENDER_DOMAIN = 'unknown.sender';
-const GMAIL_BATCH_MAX = 100; // GmailApp batch calls (moveThreadsTo*, markThreads*, addToThreads, removeFromThreads) reject more
+const SEARCH_MAX = 500; // Threads.list page cap
+const USER_LABEL_ID_PREFIX = 'Label_'; // Gmail API ids of user labels; system labels are bare names like INBOX
 const REMOVE_EMPTY_LABELS_BATCH = 50;
 
 const PUBLIC_MAX_THREADS = 100;

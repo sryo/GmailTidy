@@ -39,11 +39,13 @@ self-running system, not an admin task.
 - `sendBurndown`: daily at `BURNDOWN_HOUR`.
 - `dailyMaintenance`: daily at `TRIGGER_DAILY_MAINTENANCE_HOUR`. Tracking retention.
 
-Routines inside `cleanUp`, in order: `markDoneAsRead`, `markPinnedAsImportant`, `blockHandTrashedSenders_`, `salvagePretrashOnSignals_`, `deleteOlder`, `preTrashLowPriority`, `keepNewest_`, `markTrashAsUnimportant`, `dismissMutedPings_`, `archiveDismissedPings_`, `archiveStalePings_`, `ping`, `nudge`, `syncManualPings_`, `stash`, `archiveInbox`.
+Routines inside `cleanUp`, in order: `markDoneAsRead`, `markPinnedAsImportant`, `blockHandTrashedSenders_`, `salvagePretrashOnSignals_`, `archivePretrash_`, `deleteOlder`, `preTrashLowPriority`, `keepNewest_`, `markTrashAsUnimportant`, `dismissMutedPings_`, `archiveDismissedPings_`, `archiveStalePings_`, `ping`, `nudge`, `syncManualPings_`, `stash`, `archiveInbox`.
 
 Routines inside `cleanUpDeep`: `riff`, `processBurndownReplies_`.
 
 Routines inside `dailyMaintenance`: `pruneTracking_`.
+
+`cleanUp`, `bunch` and `removeEmptyLabels` use the Advanced Gmail API (`_gmail.gs`), not GmailApp: GmailApp's daily call quota is small and shared by the whole script, and every routine fails once it runs out.
 
 After `clasp push`, run `clasp redeploy <id>` on the deployment described `Public` (see `clasp deployments`) so the 🌎 page serves the new code at the same URL.
 

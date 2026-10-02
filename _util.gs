@@ -54,8 +54,10 @@ function safely_(label, fn) {
 }
 
 // Log suffix naming up to LOG_SUBJECTS_MAX threads, so a line says which mail it touched.
+// Takes thread ids, getThread_ results or GmailApp threads.
 function subjects_(threads) {
-  const shown = threads.slice(0, LOG_SUBJECTS_MAX).map(t => t.getFirstMessageSubject() || '(no subject)');
+  const subject = t => typeof t === 'string' ? getThread_(t).subject : t.subject !== undefined ? t.subject : t.getFirstMessageSubject();
+  const shown = threads.slice(0, LOG_SUBJECTS_MAX).map(t => subject(t) || '(no subject)');
   return ': ' + shown.join(' · ') + (threads.length > shown.length ? ' …' : '');
 }
 
@@ -72,13 +74,6 @@ function stripQuotedReplyHistory_(text) {
     out.push(line);
   }
   return out.join('\n').trim();
-}
-
-function getOrCreateUserLabel(name) {
-  let label = GmailApp.getUserLabelByName(name);
-  if (label) return label;
-  createLabelWithPolicy_(name);
-  return GmailApp.getUserLabelByName(name);
 }
 
 function appendRowsBatch(sheet, rows) {
@@ -138,37 +133,6 @@ function callGemini_(prompt, apiKey, opts) {
   return null;
 }
 
-// Strips every user label except the ones in keepNames. Used when a thread's labels should be
-// reset to a known set (e.g., pretrash carries only 🗑️). Grouped by label so each label costs one
-// batch call instead of one call per thread.
-function stripAllLabelsExcept(threads, keepNames) {
-  if (!threads || threads.length === 0) return;
-  const byName = {};
-  threads.forEach(t => {
-    t.getLabels().forEach(l => {
-      const name = l.getName();
-      if (keepNames.includes(name)) return;
-      if (!byName[name]) byName[name] = { label: l, threads: [] };
-      byName[name].threads.push(t);
-    });
-  });
-  Object.keys(byName).forEach(name => {
-    const { label, threads: ts } = byName[name];
-    inChunks_(ts, c => label.removeFromThreads(c));
-  });
-}
-
-function removeLabelIfExists_(name, threads) {
-  if (!threads || threads.length === 0) return;
-  const l = GmailApp.getUserLabelByName(name);
-  if (l) inChunks_(threads, c => l.removeFromThreads(c));
-}
-
-// Calls fn on consecutive slices of at most GMAIL_BATCH_MAX items.
-function inChunks_(items, fn) {
-  for (let i = 0; i < items.length; i += GMAIL_BATCH_MAX) fn(items.slice(i, i + GMAIL_BATCH_MAX));
-}
-
 function buildDraftMapForThreads_() {
   const map = new Map();
   GmailApp.getDrafts().forEach(d => {
@@ -213,7 +177,7 @@ function formatReplyDate_(date) {
 }
 
 function hasIncomingSince_(thread, sinceMs) {
-  return thread.getMessages().some(m => !m.isDraft() && !isFromMe_(m.getFrom()) && m.getDate().getTime() > sinceMs);
+  return thread.messages.some(m => !m.draft && !isFromMe_(m.from) && m.date > sinceMs);
 }
 
 function wasReplySentAfter_(thread, sinceTimestamp) {
@@ -232,14 +196,15 @@ function userEmail_() {
 // Exact address match against the account and its Send-As aliases. A substring or from:me check
 // false-matches lookalike addresses and misses alias sends.
 function isFromMe_(fromHeader) {
-  if (!_myAddressesCache) _myAddressesCache = new Set([userEmail_()].concat(GmailApp.getAliases()).map(a => a.toLowerCase()));
+  if (!_myAddressesCache) _myAddressesCache = new Set([userEmail_()]
+    .concat((Gmail.Users.Settings.SendAs.list('me').sendAs || []).map(s => s.sendAsEmail)).map(a => a.toLowerCase()));
   return _myAddressesCache.has(extractAddress_(fromHeader));
 }
 
 // Address of the first message not sent by you, or '' when you started and only you wrote.
 function senderOf_(thread) {
-  const m = thread.getMessages().find(m => !isFromMe_(m.getFrom()));
-  return m ? extractAddress_(m.getFrom()) : '';
+  const m = thread.messages.find(m => !isFromMe_(m.from));
+  return m ? extractAddress_(m.from) : '';
 }
 
 // True when you've ever sent mail to this address. Cached so a kept sender costs one search per TTL.
@@ -249,7 +214,7 @@ function hasWrittenTo_(address) {
   const key = KNOWN_SENDER_CACHE_PREFIX + address;
   const hit = cache.get(key);
   if (hit !== null) return hit === '1';
-  const known = GmailApp.search('label:sent to:' + address, 0, 1).length > 0;
+  const known = searchIds_('label:sent to:' + address, 1).length > 0;
   cache.put(key, known ? '1' : '0', KNOWN_SENDER_CACHE_TTL_SEC);
   return known;
 }

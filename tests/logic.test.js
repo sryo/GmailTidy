@@ -7,11 +7,13 @@ const path = require('path');
 const vm = require('vm');
 
 const ctx = vm.createContext({
-  Gmail: { Users: { getProfile: () => ({ emailAddress: 'me@example.com' }) } },
-  GmailApp: { getAliases: () => ['Alias@Example.org'] },
+  Gmail: { Users: {
+    getProfile: () => ({ emailAddress: 'me@example.com' }),
+    Settings: { SendAs: { list: () => ({ sendAs: [{ sendAsEmail: 'me@example.com' }, { sendAsEmail: 'Alias@Example.org' }] }) } },
+  } },
 });
 const root = path.join(__dirname, '..');
-['_config.gs', '_util.gs', '_llmReplyDrafter.gs', 'burndown.gs', 'bunch.gs', 'cleanUp.gs', 'public.gs'].forEach(f =>
+['_config.gs', '_util.gs', '_gmail.gs', '_llmReplyDrafter.gs', 'burndown.gs', 'bunch.gs', 'cleanUp.gs', 'public.gs'].forEach(f =>
   vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f }));
 const run = src => vm.runInContext(src, ctx);
 
