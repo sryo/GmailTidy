@@ -27,8 +27,21 @@ function getThread_(id) {
   return { id, subject: messages[0].subject, labelIds: [...new Set(messages.flatMap(m => m.labelIds))], messages };
 }
 
+const RUN_STARTED_MS = Date.now();
+
+// Stops at the run's time budget so Apps Script never kills a write midway; returns the ids it changed.
+// What's left is picked up by the next run.
 function modifyThreads_(ids, addLabelIds, removeLabelIds) {
-  ids.forEach(id => Gmail.Users.Threads.modify({ addLabelIds, removeLabelIds }, 'me', id));
+  const done = [];
+  for (const id of ids) {
+    if (timeBudgetExceeded(RUN_STARTED_MS)) {
+      console.warn('⏱️ Time budget hit, ' + (ids.length - done.length) + ' threads left for the next run');
+      break;
+    }
+    Gmail.Users.Threads.modify({ addLabelIds, removeLabelIds }, 'me', id);
+    done.push(id);
+  }
+  return done;
 }
 
 let _labelMap = null;

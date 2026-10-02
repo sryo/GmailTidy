@@ -39,7 +39,7 @@ self-running system, not an admin task.
 - `sendBurndown`: daily at `BURNDOWN_HOUR`.
 - `dailyMaintenance`: daily at `TRIGGER_DAILY_MAINTENANCE_HOUR`. Tracking retention.
 
-Routines inside `cleanUp`, in order: `markDoneAsRead`, `markPinnedAsImportant`, `blockHandTrashedSenders_`, `salvagePretrashOnSignals_`, `archivePretrash_`, `deleteOlder`, `preTrashLowPriority`, `keepNewest_`, `markTrashAsUnimportant`, `dismissMutedPings_`, `archiveDismissedPings_`, `archiveStalePings_`, `ping`, `nudge`, `syncManualPings_`, `stash`, `archiveInbox`.
+Routines inside `cleanUp`, in order: `markDoneAsRead`, `markPinnedAsImportant`, `filterHandTrashedSenders_`, `salvagePretrashOnSignals_`, `archivePretrash_`, `deleteOlder`, `preTrashLowPriority`, `keepNewest_`, `markTrashAsUnimportant`, `dismissMutedPings_`, `archiveDismissedPings_`, `archiveStalePings_`, `ping`, `nudge`, `syncManualPings_`, `stash`, `archiveInbox`.
 
 Routines inside `cleanUpDeep`: `riff`, `processBurndownReplies_`.
 
@@ -56,7 +56,7 @@ The user expresses intent through Gmail's importance flag and the script-managed
 labels. Manual gestures the system reads as signal:
 - Mark **important** = "I want to see this."
 - Mark **unimportant** = "I don't care."
-- Apply **🗑️** by hand = block the sender: a Gmail filter sends their future mail to 🗑️. Delete the filter in Gmail Settings to unblock.
+- Apply **🗑️** by hand = filter the sender: a Gmail filter sends their future mail to 🗑️. Delete the filter in Gmail Settings to undo.
 - Remove **🗑️** = salvage; the thread should be kept.
 - Star / apply **pinned** / **snoozed** = explicit positive.
 - Apply **↩️** = reply later; thread returns to Hot and is tracked like an auto-ping.
@@ -75,7 +75,7 @@ A spreadsheet named `GmailTidy (<email>)` with one tab (`Tracking`) carries five
 - Gmail's `is:important` flag is the source of truth. The script flips it only to keep pinned/snoozed important and trashed or pretrashed unimportant.
 - Pretrash takes any inbox thread not marked important. Mail from anyone you've written to (`label:sent to:`) is never auto-pretrashed.
 - Recurring automated mail in `category:updates` without attachments (same sender, same subject with digits masked) keeps only its newest copy; older ones are pretrashed.
-- A 🗑️ thread without a pretrashed row got it by hand or from a block filter; its sender gets a Gmail filter (add 🗑️, skip inbox, never important) once.
+- A 🗑️ thread without a pretrashed row got it by hand or from such a filter; its sender gets a Gmail filter (add 🗑️, skip inbox, never important) once.
 - Pinned threads are always promoted to important.
 - Stash requires `is:important has:attachment`.
 - Bunch only labels importants from the last `BUNCH_WINDOW_DAYS`, never by the user's own address.

@@ -6,7 +6,7 @@ Author: Mateo Yadarola (teodalton@gmail.com)
 function cleanUp() {
   safely_('markDoneAsRead',            markDoneAsRead);
   safely_('markPinnedAsImportant',     markPinnedAsImportant);
-  safely_('blockHandTrashedSenders_',  blockHandTrashedSenders_);
+  safely_('filterHandTrashedSenders_',  filterHandTrashedSenders_);
   safely_('salvagePretrashOnSignals_', salvagePretrashOnSignals_);
   safely_('archivePretrash_',          archivePretrash_);
   safely_('deleteOlder',               deleteOlder);
@@ -160,14 +160,16 @@ function preTrashLowPriority() {
 }
 
 // Pretrash carries only 🗑️. Unimportant so salvagePretrashOnSignals_ doesn't read Gmail's flag as a KEEP signal.
-// Recorded first: a 🗑️ thread without a row reads as hand-applied and blocks its sender.
+// Rows match labels exactly: a row without 🗑️ reads as a hand salvage, 🗑️ without a row as a hand-applied 🗑️.
 function pretrash_(threads) {
-  recordTrackingRows(threads.map(t => t.id), TRACKING_TYPE_PRETRASHED);
   const pretrash = labelId_(LABEL_PRETRASH);
-  threads.forEach(t => {
-    const userLabels = t.labelIds.filter(id => id.startsWith(USER_LABEL_ID_PREFIX) && id !== pretrash);
-    modifyThreads_([t.id], [pretrash], userLabels.concat('INBOX', 'IMPORTANT'));
-  });
+  const done = [];
+  for (const t of threads) {
+    const remove = t.labelIds.filter(id => id.startsWith(USER_LABEL_ID_PREFIX) && id !== pretrash).concat('INBOX', 'IMPORTANT');
+    if (modifyThreads_([t.id], [pretrash], remove).length === 0) break;
+    done.push(t.id);
+  }
+  recordTrackingRows(done, TRACKING_TYPE_PRETRASHED);
 }
 
 // Recurring automated mail (same sender, same subject once digits are masked): only the newest stays.
@@ -194,9 +196,9 @@ function recurringSubjectKey_(subject) {
   return (subject || '').toLowerCase().replace(/\d+/g, '#').replace(/\s+/g, ' ').trim();
 }
 
-// Applying 🗑️ by hand blocks the sender: a Gmail filter (visible in Settings > Filters) sends their
+// Applying 🗑️ by hand filters the sender: a Gmail filter (visible in Settings > Filters) sends their
 // future mail to 🗑️. Any 🗑️ thread without a pretrashed row got it by hand or from such a filter.
-function blockHandTrashedSenders_() {
+function filterHandTrashedSenders_() {
   const pretrashedAt = trackingTimes_(TRACKING_TYPE_PRETRASHED);
   const threads = searchIds_('label:' + LABEL_PRETRASH + ' -in:trash').filter(id => !pretrashedAt[id]).map(getThread_);
   if (threads.length === 0) return;
@@ -206,7 +208,7 @@ function blockHandTrashedSenders_() {
   if (senders.size > 0) {
     senders.forEach(from => {
       Gmail.Users.Settings.Filters.create({ criteria: { from }, action: { addLabelIds: [labelId_(LABEL_PRETRASH)], removeLabelIds: ['INBOX', 'IMPORTANT'] } }, 'me');
-      console.log('🚫 Blocking ' + from);
+      console.log('🗑️ Pretrashing future mail from ' + from);
     });
   }
   pretrash_(threads);
