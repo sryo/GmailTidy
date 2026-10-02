@@ -120,23 +120,24 @@ function processBurndownReplies_() {
   // the same digest thread can carry multiple distinct reply messages, each acting on a different
   // set of threads. Renaming the column to be polymorphic would ripple through three other features.
   const processed = trackingIndex_(TRACKING_TYPE_BURNDOWN_PROCESSED);
-  const digestThreads = GmailApp.search('subject:"' + BURNDOWN_SUBJECT_PREFIX + '" label:sent -in:trash newer_than:' + BURNDOWN_PROCESSED_TTL_DAYS + 'd');
+  const digestThreads = getThreads_(searchIds_('subject:"' + BURNDOWN_SUBJECT_PREFIX + '" label:sent -in:trash newer_than:' + BURNDOWN_PROCESSED_TTL_DAYS + 'd'));
   if (digestThreads.length === 0) return;
 
   const actedMsgIds = [];
 
   digestThreads.forEach(thread => {
-    const messages = thread.getMessages();
+    const messages = thread.messages;
     if (messages.length < 2) return;
-    const digestDate = messages[0].getDate();
+    const digestDate = new Date(messages[0].date);
     for (let i = 1; i < messages.length; i++) {
       const msg = messages[i];
-      if (msg.isDraft()) continue;
-      if (!isFromMe_(msg.getFrom())) continue;
-      const msgId = msg.getId();
+      if (msg.draft || !isFromMe_(msg.from)) continue;
+      const msgId = msg.id;
       if (processed[msgId]) continue;
       try {
-        const entries = parseBurndownReply_(msg.getBody(), msg.getPlainBody());
+        // GmailApp only for an unprocessed reply: its daily quota is too small to spend on scanning.
+        const full = GmailApp.getMessageById(msgId);
+        const entries = parseBurndownReply_(full.getBody(), full.getPlainBody());
         actOnBurndownEntries_(entries, digestDate);
         actedMsgIds.push(msgId);
       } catch (e) {
@@ -235,7 +236,7 @@ function actOnBurndownEntries_(entries, digestSentDate) {
     try { thread = GmailApp.getThreadById(entry.threadId); }
     catch (e) { console.warn('🔥 Burndown: thread ' + entry.threadId + ' unreachable'); return; }
     if (!thread || thread.isInTrash()) return;
-    if (wasReplySentAfter_(thread, digestSentDate)) {
+    if (wasReplySentAfter_(getThread_(entry.threadId), digestSentDate)) {
       console.log('🔥 Burndown skipping, already replied' + subjects_([thread]));
       return;
     }

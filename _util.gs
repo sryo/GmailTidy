@@ -184,8 +184,8 @@ function hasIncomingSince_(thread, sinceMs) {
 }
 
 function wasReplySentAfter_(thread, sinceTimestamp) {
-  const since = new Date(sinceTimestamp);
-  return thread.getMessages().some(m => !m.isDraft() && isFromMe_(m.getFrom()) && m.getDate() > since);
+  const since = new Date(sinceTimestamp).getTime();
+  return thread.messages.some(m => !m.draft && isFromMe_(m.from) && m.date > since);
 }
 
 let _userEmailCache = null;

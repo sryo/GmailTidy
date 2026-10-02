@@ -7,27 +7,27 @@ function riff() {
   const trackingValues = getTrackingValues_();
   const drafted = trackingIndex_(TRACKING_TYPE_DRAFTED);
   // Scan wider than the LLM budget: threads parked on a pending draft must not starve the rest.
-  const threads = GmailApp.search('label:"' + LABEL_AUTOREPLY + '" -in:trash', 0, RIFF_SCAN_LIMIT);
-  if (threads.length === 0) return;
+  const ids = searchIds_('label:"' + LABEL_AUTOREPLY + '" -in:trash', RIFF_SCAN_LIMIT);
+  if (ids.length === 0) return;
 
-  const autoreply = GmailApp.getUserLabelByName(LABEL_AUTOREPLY);
+  const autoreply = labelId_(LABEL_AUTOREPLY);
   const draftedThreadIds = buildDraftThreadIdSet_();
   const rowsToDelete = {};
   let voiceExamples = null;
   let generated = 0;
 
-  threads.forEach(t => {
+  // GmailApp only once a draft is actually written: its daily quota is too small to spend on scanning.
+  ids.forEach(threadId => {
     try {
-      const threadId = t.getId();
       const wasDrafted = !!drafted[threadId];
       const hasDraft = draftedThreadIds.has(threadId);
 
       // Tracked and the draft is gone: sent (remove 🦾) or discarded (redraft differently below).
       const redraft = wasDrafted && !hasDraft;
-      if (redraft && wasReplySentAfter_(t, trackingValues[drafted[threadId] - 1][2])) {
+      if (redraft && wasReplySentAfter_(getThread_(threadId), trackingValues[drafted[threadId] - 1][2])) {
         rowsToDelete[drafted[threadId]] = true;
-        autoreply.removeFromThreads([t]);
-        console.log('🦾 Riff sent' + subjects_([t]));
+        modifyThreads_([threadId], [], [autoreply]);
+        console.log('🦾 Riff sent' + subjects_([threadId]));
         return;
       }
 
@@ -41,12 +41,13 @@ function riff() {
       if (generated >= AUTOREPLY_BATCH_LIMIT) return;
       generated++;
       if (!voiceExamples) voiceExamples = loadVoiceExamples_();
+      const t = GmailApp.getThreadById(threadId);
       const result = generateReplyDraft(t, voiceExamples, redraft);
       if (!result) return; // abstain on API failure, retry next tick
       if (redraft) rowsToDelete[drafted[threadId]] = true;
       if (!result.draft) {
         console.log('🦾 Riff skipped (' + (result.notes || 'no draft returned') + ')' + subjects_([t]));
-        autoreply.removeFromThreads([t]);
+        modifyThreads_([threadId], [], [autoreply]);
         return;
       }
 
@@ -61,7 +62,7 @@ function riff() {
       recordTrackingRows([threadId], TRACKING_TYPE_DRAFTED);
       console.log('🦾 ' + (redraft ? 'Riff discarded, redrafting' : 'Riffing reply') + subjects_([t]));
     } catch (e) {
-      console.error('🦾 Riff failed on ' + t.getId() + ': ' + e.toString());
+      console.error('🦾 Riff failed on ' + threadId + ': ' + e.toString());
     }
   });
 
