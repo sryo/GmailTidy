@@ -50,7 +50,10 @@ function timeBudgetExceeded(startMs) {
 // Calls fn() and swallows any throw, logging "<label> failed: ...".
 // Used to keep one failing subroutine from aborting a cleanup pass.
 function safely_(label, fn) {
-  try { return fn(); } catch (e) { console.error(label + ' failed: ' + e.toString()); }
+  const start = Date.now();
+  try { return fn(); } catch (e) { console.error(label + ' failed: ' + e.toString()); } finally {
+    if (Date.now() - start > SLOW_ROUTINE_MS) console.log('⏱️ ' + label + ' took ' + Math.round((Date.now() - start) / 1000) + 's');
+  }
 }
 
 // Log suffix naming up to LOG_SUBJECTS_MAX threads, so a line says which mail it touched.
@@ -215,7 +218,7 @@ function hasWrittenTo_(address) {
   const hit = cache.get(key);
   if (hit !== null) return hit === '1';
   const known = searchIds_('label:sent to:' + address, 1).length > 0;
-  cache.put(key, known ? '1' : '0', KNOWN_SENDER_CACHE_TTL_SEC);
+  cache.put(key, known ? '1' : '0', CACHE_MAX_TTL_SEC);
   return known;
 }
 
