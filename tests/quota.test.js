@@ -114,3 +114,20 @@ test('cleanUp pretrashes an unimportant inbox thread from a stranger, without Gm
   assert.deepStrictEqual(JSON.parse(JSON.stringify(modified)), [['t1', ['Label_shop.com', 'INBOX', 'IMPORTANT']]]);
   assert.deepStrictEqual(recorded, [['t1', 'pretrashed']]);
 });
+
+test('cleanUp keeps a pinged thread whose Riff draft matches the -label: queries', () => {
+  const pingedAt = Date.now() - 3600 * 1000;
+  const ping = ['INBOX', 'Label_↩️ Ping', 'Label_🦾 Riff'];
+  const { ctx, errors, modified } = mailbox({
+    threads: { t1: { id: 't1', messages: [
+      msg('m1', 'hr@corp.com', { date: pingedAt - 2 * DAY, labelIds: ping }),
+      msg('m2', ME, { date: pingedAt + 1000, labelIds: ['INBOX', 'DRAFT'] }),
+    ] } },
+    threadsByQuery: [['in:inbox -label:"↩️ Ping"', ['t1']], ['in:inbox -label:🗑️', ['t1']]],
+    tracking: [['t1', 'pinged', new Date(pingedAt).toISOString()]],
+  });
+  ctx.recordTrackingRows = () => {};
+  vm.runInContext('cleanUp()', ctx);
+  assert.deepStrictEqual(errors, []);
+  assert.deepStrictEqual(modified, []);
+});

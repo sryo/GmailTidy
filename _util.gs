@@ -179,6 +179,10 @@ function formatReplyDate_(date) {
   return Utilities.formatDate(date, Session.getScriptTimeZone(), "EEE, MMM d, yyyy 'at' h:mm a");
 }
 
+function hasAnyLabel_(thread, labelIds) {
+  return labelIds.some(id => thread.labelIds.includes(id));
+}
+
 function hasIncomingSince_(thread, sinceMs) {
   return thread.messages.some(m => !m.draft && !isFromMe_(m.from) && m.date > sinceMs);
 }

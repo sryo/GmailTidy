@@ -116,7 +116,9 @@ function archiveDismissedPings_() {
   if (Object.keys(pingedAt).length === 0) return;
   const tracked = searchIds_('in:inbox -label:"' + LABEL_PING + '"')
     .filter(id => pingedAt[id]);
-  const toArchive = getThreads_(tracked).filter(t => !hasIncomingSince_(t, pingedAt[t.id])).map(t => t.id);
+  // -label: is evaluated per message, so a fresh Riff draft makes a pinged thread match; recheck the thread.
+  const toArchive = getThreads_(tracked)
+    .filter(t => !hasAnyLabel_(t, [labelId_(LABEL_PING)]) && !hasIncomingSince_(t, pingedAt[t.id])).map(t => t.id);
   if (toArchive.length === 0) return;
   console.log('📦 Archiving ' + toArchive.length + ' dismissed pings' + subjects_(toArchive));
   modifyThreads_(toArchive, [], [labelId_(LABEL_AUTOREPLY), 'INBOX']);
@@ -155,7 +157,9 @@ function preTrashLowPriority() {
   const salvaged = trackingTimes_(TRACKING_TYPE_SALVAGED);
   // Inbox only: a mailbox-wide scan would fill SEARCH_MAX with old kept threads and miss new ones.
   const query = 'in:inbox -label:' + LABEL_PRETRASH + ' -is:important -label:pinned -label:snoozed -label:done -is:starred -label:sent -label:"' + LABEL_AUTOREPLY + '" -label:"' + LABEL_PING + '" -label:"' + LABEL_VOICE + '"';
-  const candidates = getThreads_(searchIds_(query).filter(id => !salvaged[id]));
+  const keepIds = ['IMPORTANT', 'STARRED', 'SENT', labelId_(LABEL_AUTOREPLY), labelId_(LABEL_PING), labelId_(LABEL_VOICE)];
+  // A draft message carries none of the KEEP labels, so -label: in the query lets its thread through; recheck.
+  const candidates = getThreads_(searchIds_(query).filter(id => !salvaged[id])).filter(t => !hasAnyLabel_(t, keepIds));
   // Gmail sometimes marks real people unimportant; anyone you've written to stays,
   // remembered as salvaged so the thread isn't re-read every run.
   const fresh = candidates.filter(t => !pretrashedAt[t.id]);
